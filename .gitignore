@@ -1,0 +1,3 @@
+/target/**
+/Simulator-v2/**
+Cargo.lock
