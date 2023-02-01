@@ -1,5 +1,4 @@
 /target/**
-SimElevatorServer.exe
-SimElevatorServer.con
-simlator.con
+SimElevatorServer*
+simulator.con
 Cargo.lock
