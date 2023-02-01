@@ -1,3 +1,5 @@
 /target/**
-/Simulator-v2/**
+SimElevatorServer.exe
+SimElevatorServer.con
+simlator.con
 Cargo.lock
