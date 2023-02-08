@@ -1,8 +1,12 @@
 use driver_rust::elevio::elev as e;
 
+mod requests;
+mod elevator_io_types;
+mod elevator;
+
 fn main() -> std::io::Result<()> {
-    let num_floors = 4;
-    let elevator = e::Elevator::init("localhost:15657", num_floors)?;
+    
+    let elevator = e::Elevator::init(elevator_io_types::ADDR, elevator_io_types::N_FLOORS)?;
 
     elevator.motor_direction(e::DIRN_UP);
 
