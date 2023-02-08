@@ -6,6 +6,7 @@ use driver_rust::elevio::elev as e;
 mod requests;
 mod elevator_io_types;
 mod elevator;
+mod fsm;
 pub mod timer;
 
 fn main() -> std::io::Result<()> {
