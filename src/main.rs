@@ -19,9 +19,6 @@ fn main() -> std::io::Result<()> {
     sleep(Duration::from_secs(2));
     print!("timer_timed_out(): {}\n", timer::timer_timed_out());
 
-    let num_floors = 4;
-    let elevator = e::Elevator::init("localhost:15657", num_floors)?;
-
     elevator.motor_direction(e::DIRN_UP);
 
     loop {
