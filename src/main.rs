@@ -2,19 +2,21 @@ use crossbeam_channel::{unbounded, select};
 use std::thread::*;
 use std::time::*;
 
+
 use driver_rust::elevio::elev;
 
 pub mod doors;
 pub mod inputs;
+pub mod orders;
 
 const ELEV_NUM_FLOORS: u8 = 4;
 const ELEV_ADDR: &str = "localhost:15657";
 
 fn main() -> std::io::Result<()> {
-    let (sthread, rmain) = unbounded();
-    let (smain, rthread) = unbounded();
+    //let (sthread, rmain) = unbounded();
+    //let (smain, rthread) = unbounded();
 
-    spawn(move || doors::main(sthread, rthread));
+    //spawn(move || doors::main(sthread, rthread));
 
     let elevator = elev::Elevator::init(ELEV_ADDR, ELEV_NUM_FLOORS)?;
     println!("Elevator started:\n{:#?}", elevator);
