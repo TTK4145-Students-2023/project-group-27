@@ -12,6 +12,9 @@ const ELEV_NUM_FLOORS: u8 = 4;
 const ELEV_ADDR: &str = "localhost:15657";
 
 fn main() -> std::io::Result<()> {
+
+    let mut orders = vec![vec![false; 3]; 4];
+
     let (doors_activate_tx, doors_timed_out_rx) = doors::init();
 
     let elevator = elev::Elevator::init(ELEV_ADDR, ELEV_NUM_FLOORS)?;
@@ -37,6 +40,7 @@ fn main() -> std::io::Result<()> {
                 let call_button = a.unwrap();
                 println!("{:#?}", call_button);
                 elevator.call_button_light(call_button.floor, call_button.call, true);
+                orders[call_button.floor as usize][call_button.call as usize] = true;
             },
             recv(floor_sensor_rx) -> a => {
                 let floor = a.unwrap();
@@ -49,6 +53,12 @@ fn main() -> std::io::Result<()> {
                     } else {
                         dirn
                     };
+                // CLEAR ORDERS ON FLOOR
+                
+                elevator.call_button_light(floor, elev::CAB, false);
+                elevator.call_button_light(floor, elev::HALL_DOWN, false);
+                elevator.call_button_light(floor, elev::HALL_UP, false);
+                
                 // STOP AND OPEN DOOR
                 elevator.motor_direction(elev::DIRN_STOP);
                 doors_activate_tx.send(true).unwrap();
