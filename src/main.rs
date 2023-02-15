@@ -1,5 +1,4 @@
-use crossbeam_channel::{unbounded, select};
-use std::thread::*;
+use crossbeam_channel::select;
 use std::time::*;
 
 use driver_rust::elevio::elev;
@@ -11,10 +10,7 @@ const ELEV_NUM_FLOORS: u8 = 4;
 const ELEV_ADDR: &str = "localhost:15657";
 
 fn main() -> std::io::Result<()> {
-    let (sthread, rmain) = unbounded();
-    let (smain, rthread) = unbounded();
-
-    spawn(move || doors::main(sthread, rthread));
+    let (doors_activate_tx, doors_timed_out_rx) = doors::init();
 
     let elevator = elev::Elevator::init(ELEV_ADDR, ELEV_NUM_FLOORS)?;
     println!("Elevator started:\n{:#?}", elevator);
@@ -51,6 +47,13 @@ fn main() -> std::io::Result<()> {
                     } else {
                         dirn
                     };
+                // STOP AND OPEN DOOR
+                elevator.motor_direction(elev::DIRN_STOP);
+                doors_activate_tx.send(true).unwrap();
+                elevator.door_light(true);
+                doors_timed_out_rx.recv().unwrap();
+                elevator.door_light(false);
+                // CONTINUE...
                 elevator.motor_direction(dirn);
             },
             recv(stop_button_rx) -> a => {
@@ -66,7 +69,7 @@ fn main() -> std::io::Result<()> {
                 let obstr = a.unwrap();
                 println!("Obstruction: {:#?}", obstr);
                 elevator.motor_direction(if obstr { elev::DIRN_STOP } else { dirn });
-            },
+            }
         }
     }
 }
