@@ -4,9 +4,9 @@ use std::thread::spawn;
 
 pub fn init() -> (Sender<bool>, Receiver<bool>) {
     let (doors_activate_tx, doors_activate_rx) = unbounded();
-    let (doors_timed_out_tx, doors_timed_out_rx) = unbounded();
-    spawn(move || main(doors_timed_out_tx, doors_activate_rx));
-    (doors_activate_tx, doors_timed_out_rx)
+    let (doors_closing_tx, doors_closing_rx) = unbounded();
+    spawn(move || main(doors_closing_tx, doors_activate_rx));
+    (doors_activate_tx, doors_closing_rx)
 }
 
 fn main(s: crossbeam_channel::Sender<bool>, r: crossbeam_channel::Receiver<bool>) {
