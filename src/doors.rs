@@ -26,7 +26,6 @@ fn main(
                 }
             },
             recv(doors_activate_rx) -> msg => {
-                print!("{:#?}", msg);
                 match msg.unwrap() {
                     true => active = true,
                     false => active = false

@@ -47,9 +47,12 @@ fn main(
         select! {
             recv(requests_should_stop_rx) -> _ => {
                 match state {
-                    State::Idle => (),
+                    State::Idle => {
+                        state = State::DoorOpen;
+                        doors_activate_tx.send(true).unwrap();
+                        elevator.door_light(true);
+                    },
                     State::Moving => {
-                        println!("stopping...");
                         state = State::DoorOpen;
                         elevator.motor_direction(elev::DIRN_STOP);
                         doors_activate_tx.send(true).unwrap();

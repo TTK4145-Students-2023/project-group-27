@@ -45,6 +45,9 @@ fn main(
                 // WHEN WE RECIEVE A NEW ORDER -> ADD TO MATRIX
                 let floor = msg.as_ref().unwrap().floor;
                 let dirn = msg.unwrap().call;
+                if floor == last_floor {
+                    requests_should_stop_tx.send(true).unwrap();
+                }
 
                 orders[floor as usize][dirn as usize] = true;
                 elevator.call_button_light(floor, dirn, true);
@@ -55,7 +58,6 @@ fn main(
                 // IF WE STOP: SEND MESSAGE AND CLEAR ORDER
                 last_floor = floor.unwrap();
                 elevator.floor_indicator(last_floor);
-                println!("reached floor: {}", floor.unwrap());
                 if should_stop(orders, floor.unwrap(), last_direction) {
                     requests_should_stop_tx.send(true).unwrap();
                     clear_order(elevator.clone(), &mut orders, floor.unwrap(), last_direction);
