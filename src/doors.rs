@@ -1,6 +1,7 @@
-use crossbeam_channel::{unbounded, select, Sender, Receiver};
 use std::time::Duration;
 use std::thread::spawn;
+
+use crossbeam_channel::{unbounded, select, Sender, Receiver};
 
 pub fn init(obstruction_rx: Receiver<bool>) -> (Sender<bool>, Receiver<bool>) {
     let (doors_activate_tx, doors_activate_rx) = unbounded();

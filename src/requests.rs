@@ -1,6 +1,7 @@
-use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use std::thread::spawn;
+use std::time::Duration;
 
+use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use driver_rust::elevio::{poll, elev};
 
 use crate::config::{ELEV_NUM_FLOORS, ELEV_NUM_BUTTONS};
@@ -11,21 +12,18 @@ pub fn init(
     floor_sensor_rx: Receiver<u8>,
 ) -> (
     Receiver<bool>, 
-    Receiver<u8>,
-    Sender<bool>
+    Receiver<u8>
 ) {
     let (requests_should_stop_tx, requests_should_stop_rx) = unbounded();
-    let (requests_new_direction_tx, requests_new_direction_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
     spawn(move || main(
         elevator,
         call_button_rx, 
         floor_sensor_rx,
         requests_should_stop_tx,
-        requests_next_direction_tx,
-        requests_new_direction_rx
+        requests_next_direction_tx
     ));
-    (requests_should_stop_rx, requests_next_direction_rx, requests_new_direction_tx)
+    (requests_should_stop_rx, requests_next_direction_rx)
 }
 
 fn main(
@@ -33,9 +31,10 @@ fn main(
     call_button_rx: Receiver<poll::CallButton>, 
     floor_sensor_rx: Receiver<u8>,
     requests_should_stop_tx: Sender<bool>,
-    requests_next_direction_tx: Sender<u8>,
-    requests_new_direction: Receiver<bool>
+    requests_next_direction_tx: Sender<u8>
 ) {
+    let send_new_direction_freq: Duration = Duration::from_secs_f64(0.5);
+
     let mut orders = [[false; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize];
     let mut last_floor: u8 = 0;
     let mut last_direction: u8 = elev::DIRN_DOWN;
@@ -62,8 +61,8 @@ fn main(
                     clear_order(elevator.clone(), &mut orders, floor.unwrap(), last_direction);
                 }
             },
-            recv(requests_new_direction) -> _ => {
-                // WHEN THE DOORS CLOSE -> WHAT DIRECTION TO GO TO NEXT?
+            default(send_new_direction_freq) => {
+                // SPAM NEW DIRECTION, FSM WILL IGNORE IF OBSOLETE
                 let next_direction = next_direction(orders, last_floor, last_direction);
                 requests_next_direction_tx.send(next_direction).unwrap();
                 clear_order(elevator.clone(), &mut orders, last_floor, next_direction);

@@ -1,9 +1,8 @@
-use crossbeam_channel::{unbounded, Receiver};
 use std::time::Duration;
 use std::thread::spawn;
 
-use driver_rust::elevio::poll;
-use driver_rust::elevio::elev;
+use crossbeam_channel::{unbounded, Receiver};
+use driver_rust::elevio::{poll, elev};
 
 pub fn init(elevator: elev::Elevator, poll_period: Duration) -> (
     Receiver<poll::CallButton>, 

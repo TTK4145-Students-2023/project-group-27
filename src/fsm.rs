@@ -1,7 +1,6 @@
 use std::thread::spawn;
-use crossbeam_channel::{select, Receiver, Sender};
-use std::time::Duration;
 
+use crossbeam_channel::{select, Receiver, Sender};
 use driver_rust::elevio::elev::{self, Elevator};
 
 #[derive(PartialEq, Debug)]
@@ -17,7 +16,6 @@ pub fn init(
     doors_activate_tx: Sender<bool>,
     requests_next_direction_rx: Receiver<u8>,
     doors_closing_rx: Receiver<bool>,
-    requests_new_direction_tx: Sender<bool>
 ) {
     spawn(move || main(
         elevator, 
@@ -25,7 +23,6 @@ pub fn init(
         doors_activate_tx, 
         requests_next_direction_rx,
         doors_closing_rx,
-        requests_new_direction_tx
     ));
 }
 
@@ -35,10 +32,7 @@ fn main(
     doors_activate_tx: Sender<bool>,
     requests_next_direction_rx: Receiver<u8>,
     doors_closing_rx: Receiver<bool>,
-    requests_new_direction_tx: Sender<bool>
 ) {
-    let poll_new_direction_time: Duration = Duration::from_secs_f64(0.5);
-
     let mut state: State = State::Idle;
     println!("started state machine in state: {:#?}", state);
 
@@ -86,13 +80,7 @@ fn main(
                     State::DoorOpen => {
                         elevator.door_light(false);
                         state = State::Idle;
-                        requests_new_direction_tx.send(true).unwrap();
                     },
-                }
-            },
-            default(poll_new_direction_time) => {
-                if state == State::Idle {
-                    requests_new_direction_tx.send(true).unwrap();
                 }
             }
         }

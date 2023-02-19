@@ -1,6 +1,6 @@
-use crossbeam_channel::select;
-use std::time::*;
+use std::time::Duration;
 
+use crossbeam_channel::select;
 use driver_rust::elevio::elev;
 
 pub mod doors;
@@ -30,8 +30,7 @@ fn main() -> std::io::Result<()> {
     // INITIALIZE REQUESTS MODULE
     let (
         requests_should_stop_rx, 
-        requests_next_direction_rx,
-        requests_new_direction_tx
+        requests_next_direction_rx
     ) = requests::init(
         elevator.clone(),
         call_button_rx,
@@ -45,8 +44,7 @@ fn main() -> std::io::Result<()> {
         requests_should_stop_rx, 
         doors_activate_tx,
         requests_next_direction_rx,
-        doors_closing_rx,
-        requests_new_direction_tx
+        doors_closing_rx
     );
     println!("module initialized: fsm");
 
