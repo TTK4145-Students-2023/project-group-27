@@ -20,12 +20,12 @@ pub fn init(
     requests_new_direction_tx: Sender<bool>
 ) {
     spawn(move || main(
-        elevator.clone(), 
-        requests_should_stop_rx.clone(), 
-        doors_activate_tx.clone(), 
-        requests_next_direction_rx.clone(),
-        doors_closing_rx.clone(),
-        requests_new_direction_tx.clone()
+        elevator, 
+        requests_should_stop_rx, 
+        doors_activate_tx, 
+        requests_next_direction_rx,
+        doors_closing_rx,
+        requests_new_direction_tx
     ));
 }
 

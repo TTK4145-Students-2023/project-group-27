@@ -18,12 +18,12 @@ pub fn init(
     let (requests_new_direction_tx, requests_new_direction_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
     spawn(move || main(
-        elevator.clone(),
-        call_button_rx.clone(), 
-        floor_sensor_rx.clone(),
-        requests_should_stop_tx.clone(),
-        requests_next_direction_tx.clone(),
-        requests_new_direction_rx.clone()
+        elevator,
+        call_button_rx, 
+        floor_sensor_rx,
+        requests_should_stop_tx,
+        requests_next_direction_tx,
+        requests_new_direction_rx
     ));
     (requests_should_stop_rx, requests_next_direction_rx, requests_new_direction_tx)
 }
@@ -54,20 +54,20 @@ fn main(
             recv(floor_sensor_rx) -> floor => {
                 // WHEN WE PASS A FLOOR -> CHECK IF WE SHOULD STOP
                 // IF WE STOP: SEND MESSAGE AND CLEAR ORDER
-                last_floor = floor.unwrap().clone();
+                last_floor = floor.unwrap();
                 elevator.floor_indicator(last_floor);
                 println!("reached floor: {}", floor.unwrap());
-                if should_stop(orders.clone(), floor.unwrap().clone(), last_direction.clone()) {
+                if should_stop(orders, floor.unwrap(), last_direction) {
                     requests_should_stop_tx.send(true).unwrap();
-                    clear_order(elevator.clone(), &mut orders, floor.unwrap().clone(), last_direction.clone());
+                    clear_order(elevator.clone(), &mut orders, floor.unwrap(), last_direction);
                 }
             },
             recv(requests_new_direction) -> _ => {
                 // WHEN THE DOORS CLOSE -> WHAT DIRECTION TO GO TO NEXT?
-                let next_direction = next_direction(orders.clone(), last_floor.clone(), last_direction.clone());
-                requests_next_direction_tx.send(next_direction.clone()).unwrap();
+                let next_direction = next_direction(orders, last_floor, last_direction);
+                requests_next_direction_tx.send(next_direction).unwrap();
                 clear_order(elevator.clone(), &mut orders, last_floor, next_direction);
-                last_direction = if next_direction.clone() != elev::DIRN_STOP { next_direction.clone() } else { last_direction };
+                last_direction = if next_direction != elev::DIRN_STOP { next_direction } else { last_direction };
             }
         }
     }

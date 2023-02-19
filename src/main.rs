@@ -24,7 +24,7 @@ fn main() -> std::io::Result<()> {
     println!("module initialized: inputs");
 
     // INITIALIZE DOORS MODULE
-    let (doors_activate_tx, doors_closing_rx) = doors::init(obstruction_rx.clone());
+    let (doors_activate_tx, doors_closing_rx) = doors::init(obstruction_rx);
     println!("module initialized: doors");
 
     // INITIALIZE REQUESTS MODULE
@@ -34,19 +34,19 @@ fn main() -> std::io::Result<()> {
         requests_new_direction_tx
     ) = requests::init(
         elevator.clone(),
-        call_button_rx.clone(),
-        floor_sensor_rx.clone(),
+        call_button_rx,
+        floor_sensor_rx,
     );
     println!("module initialized: requests");
 
     // INITIALIZE FSM MODULE
     fsm::init(
         elevator.clone(),
-        requests_should_stop_rx.clone(), 
-        doors_activate_tx.clone(),
-        requests_next_direction_rx.clone(),
-        doors_closing_rx.clone(),
-        requests_new_direction_tx.clone()
+        requests_should_stop_rx, 
+        doors_activate_tx,
+        requests_next_direction_rx,
+        doors_closing_rx,
+        requests_new_direction_tx
     );
     println!("module initialized: fsm");
 
