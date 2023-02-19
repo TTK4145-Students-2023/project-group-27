@@ -48,11 +48,6 @@ fn main() -> std::io::Result<()> {
     );
     println!("module initialized: fsm");
 
-    // DRIVE ELEVATOR TO FLOOR IF INBETWEEN FLOORS
-    if elevator.floor_sensor().is_none() {
-        elevator.motor_direction(elev::DIRN_DOWN);
-    }
-
     loop {
         select! {
             recv(stop_button_rx) -> _ => {
