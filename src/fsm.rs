@@ -1,114 +1,100 @@
-use driver_rust::elevio::elev::DIRN_STOP;
-use driver_rust::elevio::poll;
-use driver_rust::elevio::elev;
+use std::thread::spawn;
 use crossbeam_channel::{select, Receiver, Sender};
+use std::time::Duration;
 
-use crate::requests::{self, ElevatorBehaviour, DirnBehaviourPair};
+use driver_rust::elevio::elev::{self, Elevator};
 
-pub fn main(
-    elevator: elev::Elevator, 
-    call_button_rx: Receiver<poll::CallButton>,
-    floor_sensor_rx: Receiver<u8>,
+#[derive(PartialEq, Debug)]
+enum State {
+    Idle,
+    Moving,
+    DoorOpen
+}
+
+pub fn init(
+    elevator: Elevator,
+    requests_should_stop_rx: Receiver<bool>,
+    doors_activate_tx: Sender<bool>,
+    requests_next_direction_rx: Receiver<u8>,
     doors_closing_rx: Receiver<bool>,
-    obstruction_rx: Receiver<bool>,
-    doors_activate_tx: Sender<bool>
+    requests_new_direction_tx: Sender<bool>
 ) {
-    let mut elevator_behaviour: ElevatorBehaviour = ElevatorBehaviour::Idle;
-    let mut dirn: u8 = DIRN_STOP;
+    spawn(move || main(
+        elevator.clone(), 
+        requests_should_stop_rx.clone(), 
+        doors_activate_tx.clone(), 
+        requests_next_direction_rx.clone(),
+        doors_closing_rx.clone(),
+        requests_new_direction_tx.clone()
+    ));
+}
+
+fn main(
+    elevator: Elevator,
+    requests_should_stop_rx: Receiver<bool>,
+    doors_activate_tx: Sender<bool>,
+    requests_next_direction_rx: Receiver<u8>,
+    doors_closing_rx: Receiver<bool>,
+    requests_new_direction_tx: Sender<bool>
+) {
+    let poll_new_direction_time: Duration = Duration::from_secs_f64(0.5);
+
+    let mut state: State = State::Idle;
+    println!("started state machine in state: {:#?}", state);
+
+    // DRIVE ELEVATOR TO FLOOR
+    if elevator.floor_sensor().is_none() {
+        elevator.motor_direction(elev::DIRN_DOWN);
+        state = State::Moving;
+        println!("finding floor in state: {:#?}", state);
+    }
+
     loop {
         select! {
-            recv(call_button_rx) -> call_button => {
-                on_request_button_press(
-                    elevator.clone(),
-                    &mut elevator_behaviour,
-                    call_button.as_ref().unwrap().floor, 
-                    call_button.unwrap().call
-                );
+            recv(requests_should_stop_rx) -> _ => {
+                match state {
+                    State::Idle => (),
+                    State::Moving => {
+                        println!("stopping...");
+                        state = State::DoorOpen;
+                        elevator.motor_direction(elev::DIRN_STOP);
+                        doors_activate_tx.send(true).unwrap();
+                        elevator.door_light(true);
+                    },
+                    State::DoorOpen => (),
+                }
             },
-            recv(floor_sensor_rx) -> floor => {
-                on_floor_arrival(
-                    elevator.clone(),
-                    &mut elevator_behaviour,
-                    floor.unwrap()
-                );
+            recv(requests_next_direction_rx) -> dirn => {
+                match state {
+                    State::Idle => {
+                        match dirn.unwrap() {
+                            elev::DIRN_UP | elev::DIRN_DOWN => {
+                                elevator.motor_direction(dirn.unwrap());
+                                state = State::Moving;
+                            },
+                            _ => ()
+                        }
+                    },
+                    State::Moving => (),
+                    State::DoorOpen => (),
+                }
             },
             recv(doors_closing_rx) -> _ => {
-                doors_activate_tx.send(false).unwrap();
-                on_door_timeout(
-                    elevator.clone(),
-                    &mut elevator_behaviour,
-                    &mut dirn,
-                    doors_activate_tx.clone()
-                );
+                match state {
+                    State::Idle => (),
+                    State::Moving => (),
+                    State::DoorOpen => {
+                        elevator.door_light(false);
+                        state = State::Idle;
+                        requests_new_direction_tx.send(true).unwrap();
+                    },
+                }
             },
-            recv(obstruction_rx) -> _ => {
-                doors_activate_tx.send(true).unwrap();
-            },
-        }
-    }
-}
-
-fn on_request_button_press(
-    elevator: elev::Elevator, 
-    elevator_behaviour: &mut ElevatorBehaviour, 
-    f: u8, 
-    b: u8
-) {
-    
-}
-
-fn on_floor_arrival(
-    elevator: elev::Elevator, 
-    elevator_behaviour: &mut ElevatorBehaviour, 
-    f: u8
-) {
-
-}
-
-fn on_door_timeout(
-    elevator: elev::Elevator, 
-    elevator_behaviour: &mut ElevatorBehaviour, 
-    dirn: &mut u8, 
-    doors_activate_tx: Sender<bool>
-) {
-    // switch(elevator.behaviour){
-    //     case EB_DoorOpen:;
-    //         DirnBehaviourPair pair = requests_chooseDirection(elevator);
-    //         elevator.dirn = pair.dirn;
-    //         elevator.behaviour = pair.behaviour;
-            
-    //         switch(elevator.behaviour){
-    //         case EB_DoorOpen:
-    //             timer_start(elevator.config.doorOpenDuration_s);
-    //             elevator = requests_clearAtCurrentFloor(elevator);
-    //             setAllLights(elevator);
-    //             break;
-    //         case EB_Moving:
-    //         case EB_Idle:
-    //             outputDevice.doorLight(0);
-    //             outputDevice.motorDirection(elevator.dirn);
-    //             break;
-    //         }
-            
-    //         break;
-    //     default:
-    //         break;
-    //     }
-    match elevator_behaviour {
-        ElevatorBehaviour::DoorOpen => {
-            let pair: DirnBehaviourPair = requests::choose_direction(elevator.clone());
-            *dirn = pair.dirn;
-            *elevator_behaviour = pair.behaviour;
-            match elevator_behaviour {
-                ElevatorBehaviour::DoorOpen => {
-                    doors_activate_tx.send(true).unwrap();
-                    requests::clear_at_current_floor(elevator);
-                },
-                ElevatorBehaviour::Moving | ElevatorBehaviour::Idle => {
-
-                },
+            default(poll_new_direction_time) => {
+                if state == State::Idle {
+                    requests_new_direction_tx.send(true).unwrap();
+                }
             }
-        },
-        _ => (),
+        }
     }
 }

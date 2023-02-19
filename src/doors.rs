@@ -2,20 +2,26 @@ use crossbeam_channel::{unbounded, select, Sender, Receiver};
 use std::time::Duration;
 use std::thread::spawn;
 
-pub fn init() -> (Sender<bool>, Receiver<bool>) {
+pub fn init(obstruction_rx: Receiver<bool>) -> (Sender<bool>, Receiver<bool>) {
     let (doors_activate_tx, doors_activate_rx) = unbounded();
     let (doors_closing_tx, doors_closing_rx) = unbounded();
-    spawn(move || main(doors_closing_tx, doors_activate_rx));
+    spawn(move || main(doors_closing_tx, doors_activate_rx, obstruction_rx));
     (doors_activate_tx, doors_closing_rx)
 }
 
-fn main(s: crossbeam_channel::Sender<bool>, r: crossbeam_channel::Receiver<bool>) {
+fn main(
+    doors_closing_tx: Sender<bool>, 
+    doors_activate_rx: Receiver<bool>, 
+    obstruction_rx: Receiver<bool>
+) {
     const TIMER_DURATION: f64 = 3.0;
     let mut active: bool = false;
 
     loop {
         select! {
-            recv(r) -> msg => {
+            recv(obstruction_rx) -> _ => (),
+            recv(doors_activate_rx) -> msg => {
+                print!("{:#?}", msg);
                 match msg.unwrap() {
                     true => active = true,
                     false => active = false
@@ -23,7 +29,7 @@ fn main(s: crossbeam_channel::Sender<bool>, r: crossbeam_channel::Receiver<bool>
             },
             default(Duration::from_secs_f64(TIMER_DURATION)) => {
                 if active {
-                    s.send(true).unwrap();
+                    doors_closing_tx.send(true).unwrap();
                     active = false;
                 }
             },

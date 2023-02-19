@@ -36,4 +36,3 @@ pub fn init(elevator: elev::Elevator, poll_period: Duration) -> (
     }
     (call_button_rx, floor_sensor_rx, stop_button_rx, obstruction_rx)
 }
-
