@@ -20,7 +20,11 @@ fn main(
 
     loop {
         select! {
-            recv(obstruction_rx) -> _ => (),
+            recv(obstruction_rx) -> msg => {
+                if active && msg.unwrap() {
+                    obstruction_rx.recv().unwrap(); // block until next message from obstruction
+                }
+            },
             recv(doors_activate_rx) -> msg => {
                 print!("{:#?}", msg);
                 match msg.unwrap() {
