@@ -44,14 +44,14 @@ fn main(
             recv(call_button_rx) -> msg => {
                 // WHEN WE RECIEVE A NEW ORDER -> ADD TO MATRIX
                 let floor = msg.as_ref().unwrap().floor;
-                let dirn = msg.unwrap().call;
-                if floor == last_floor {
+                let button = msg.unwrap().call;
+                orders[floor as usize][button as usize] = true;
+                elevator.call_button_light(floor, button, true);
+                println!("Recieved order | floor: {}, dirn: {}", floor, button);
+                
+                if floor == last_floor && !elevator.floor_sensor().is_none() {
                     requests_should_stop_tx.send(true).unwrap();
                 }
-
-                orders[floor as usize][dirn as usize] = true;
-                elevator.call_button_light(floor, dirn, true);
-                println!("Recieved order | floor: {}, dirn: {}", floor, dirn);
             },
             recv(floor_sensor_rx) -> floor => {
                 // WHEN WE PASS A FLOOR -> CHECK IF WE SHOULD STOP
@@ -67,7 +67,9 @@ fn main(
                 // SPAM NEW DIRECTION, FSM WILL IGNORE IF OBSOLETE
                 let next_direction = next_direction(orders, last_floor, last_direction);
                 requests_next_direction_tx.send(next_direction).unwrap();
-                clear_order(elevator.clone(), &mut orders, last_floor, next_direction);
+                if !elevator.floor_sensor().is_none() {
+                    clear_order(elevator.clone(), &mut orders, last_floor, next_direction);
+                }
                 last_direction = if next_direction != elev::DIRN_STOP { next_direction } else { last_direction };
             }
         }
