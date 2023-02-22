@@ -25,12 +25,7 @@ fn main(
                     obstruction_rx.recv().unwrap(); // block until next message from obstruction
                 }
             },
-            recv(doors_activate_rx) -> msg => {
-                match msg.unwrap() {
-                    true => active = true,
-                    false => active = false
-                }
-            },
+            recv(doors_activate_rx) -> _ => active = true,
             default(Duration::from_secs_f64(TIMER_DURATION)) => {
                 if active {
                     doors_closing_tx.send(true).unwrap();
