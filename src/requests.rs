@@ -14,6 +14,13 @@ pub fn init(
     Receiver<bool>, 
     Receiver<u8>
 ) {
+    // CLEAR ALL LIGHTS
+    for floor in 0..ELEV_NUM_FLOORS {
+        for btn in elev::HALL_UP..=elev::CAB {
+            elevator.call_button_light(floor, btn, false);
+        }
+    }
+
     let (requests_should_stop_tx, requests_should_stop_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
     spawn(move || main(
