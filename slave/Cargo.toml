@@ -1,6 +1,6 @@
 [package]
 name = "slave"
-version = "0.1.0"
+version = "1.0.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -11,3 +11,4 @@ time = "0.1.12"
 lazy_static = "1.4.0"
 parking_lot = "0.12.1"
 crossbeam-channel = "0.5"
+network-rust = { git = "https://github.com/TTK4145/network-rust", targ = "v0.3.0" }
