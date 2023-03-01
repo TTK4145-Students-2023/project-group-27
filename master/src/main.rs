@@ -1,10 +1,11 @@
 use crossbeam_channel::{select};
 use std::time::Duration;
+use std::thread;
 
 pub mod config;
-// pub mod orders;
 pub mod network;
-
+pub mod orders;
+pub mod test_hall_assigner;
 
 fn main() {
     println!("Master started");
@@ -12,6 +13,9 @@ fn main() {
     let (receive_hall_order_rx, _receive_elevator_state_rx) = network::init();
 
     println!("Hello");
+    thread::spawn(move || orders::main());
+
+    test_hall_assigner::test_hall_assigner();
 
     loop {
         select! {

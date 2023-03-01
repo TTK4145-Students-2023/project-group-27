@@ -9,3 +9,4 @@ edition = "2021"
 network-rust = { git = "https://github.com/TTK4145/network-rust", tag = "v0.3.0" }
 crossbeam-channel = "0.5.7"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

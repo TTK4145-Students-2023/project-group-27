@@ -3,17 +3,27 @@ use std::time::Duration;
 
 use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use driver_rust::elevio::{poll, elev};
+// ---
+//use std::process;
+//use std::thread::*;
+//use std::process::Command;
+//use std::env;
+//use network_rust::udpnet;
+// ---
 
 use crate::config::{ELEV_NUM_FLOORS, ELEV_NUM_BUTTONS};
+use crate::network::{HallOrder, hall_order};
 
 pub fn init(
     elevator: elev::Elevator,
     call_button_rx: Receiver<poll::CallButton>,
     floor_sensor_rx: Receiver<u8>,
+    send_to_master_tx: Sender<HallOrder>
 ) -> (
     Receiver<bool>, 
     Receiver<u8>
 ) {
+    
     // CLEAR ALL LIGHTS
     for floor in 0..ELEV_NUM_FLOORS {
         for btn in elev::HALL_UP..=elev::CAB {
@@ -23,13 +33,22 @@ pub fn init(
 
     let (requests_should_stop_tx, requests_should_stop_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
+    // ---
+    
+    // ---
     spawn(move || main(
         elevator,
         call_button_rx, 
         floor_sensor_rx,
         requests_should_stop_tx,
-        requests_next_direction_tx
+        requests_next_direction_tx,
+        // ---
+        send_to_master_tx
+        // ---
     ));
+    // --- Thread for sending Hall orders through UDP Broadcast
+    
+    // ---
     (requests_should_stop_rx, requests_next_direction_rx)
 }
 
@@ -38,7 +57,11 @@ fn main(
     call_button_rx: Receiver<poll::CallButton>, 
     floor_sensor_rx: Receiver<u8>,
     requests_should_stop_tx: Sender<bool>,
-    requests_next_direction_tx: Sender<u8>
+    requests_next_direction_tx: Sender<u8>,
+    // ---
+    send_to_master_tx: Sender<HallOrder>
+    // ---
+    
 ) {
     let send_new_direction_freq: Duration = Duration::from_secs_f64(0.5);
 
@@ -50,15 +73,23 @@ fn main(
         select! {
             recv(call_button_rx) -> msg => {
                 // WHEN WE RECIEVE A NEW ORDER -> ADD TO MATRIX
-                let floor = msg.as_ref().unwrap().floor;
+                let destination = msg.as_ref().unwrap().floor;
                 let button = msg.unwrap().call;
-                orders[floor as usize][button as usize] = true;
-                elevator.call_button_light(floor, button, true);
-                println!("Recieved order | floor: {}, dirn: {}", floor, button);
-                
-                if floor == last_floor && !elevator.floor_sensor().is_none() {
-                    requests_should_stop_tx.send(true).unwrap();
+                // THIS PART CHECKS IF ORDER IS FROM CAB, ELEVATOR TREATS OWN CAB ORDERS
+                if button == elev::CAB {
+                    orders[destination as usize][button as usize] = true;
+                    elevator.call_button_light(destination, button, true);
+                    println!("Recieved order | floor: {}, dirn: {}", destination, button);
+                    if destination == last_floor && !elevator.floor_sensor().is_none() {
+                        requests_should_stop_tx.send(true).unwrap();
+                    }  
                 }
+                else {
+                    send_to_master_tx.send(hall_order(destination, button)).unwrap();
+                    println!("Sending order to master | floor: {}, button: {}", destination, button);
+                }
+                // ---
+                
             },
             recv(floor_sensor_rx) -> floor => {
                 // WHEN WE PASS A FLOOR -> CHECK IF WE SHOULD STOP
