@@ -28,7 +28,7 @@ fn main() -> std::io::Result<()> {
     println!("module initialized: doors");
 
     // INITIALIZE NETWORK MODULE
-    let send_to_master_tx= network::init();
+    let (send_hall_order_tx,_send_elevator_state_tx)= network::init();
 
     // INITIALIZE REQUESTS MODULE
     let (
@@ -38,7 +38,7 @@ fn main() -> std::io::Result<()> {
         elevator.clone(),
         call_button_rx,
         floor_sensor_rx,
-        send_to_master_tx
+        send_hall_order_tx
     );
     println!("module initialized: requests");
 

@@ -86,6 +86,7 @@ fn main(
                 }
                 else {
                     send_to_master_tx.send(hall_order(destination, button)).unwrap();
+                    println!("Sending order to master | floor: {}, button: {}", destination, button);
                 }
                 // ---
                 

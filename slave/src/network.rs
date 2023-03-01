@@ -41,13 +41,24 @@ pub fn hall_order(destination: u8, button: u8) -> HallOrder {
     }
 }
 
-pub fn init() -> Sender<HallOrder> {
-    let (send_to_master_tx, send_to_master_rx) = unbounded::<HallOrder>();
+pub fn init() -> (
+    Sender<HallOrder>,
+    Sender<ElevatorState>
+) {
+    let (send_hall_order_tx, send_hall_order_rx) = unbounded::<HallOrder>();
+    let (send_elevator_state_tx, send_elevator_state_rx) = unbounded::<ElevatorState>();
+
     spawn(move || {
-        if udpnet::bcast::tx(PORT, send_to_master_rx).is_err() {
+        if udpnet::bcast::tx(PORT, send_hall_order_rx).is_err() {
             process::exit(1);
         }
     });
-    send_to_master_tx
+    spawn(move || {
+        if udpnet::bcast::tx(PORT, send_elevator_state_rx).is_err() {
+            process::exit(1);
+        }
+    });
+    
+    (send_hall_order_tx, send_elevator_state_tx)
 }
 
