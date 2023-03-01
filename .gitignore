@@ -2,3 +2,4 @@
 SimElevatorServer*
 simulator.con
 Cargo.lock
+**/hall_request_assigner
