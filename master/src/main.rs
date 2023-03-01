@@ -11,9 +11,7 @@ fn main() {
     
     let (receive_hall_order_rx, _receive_elevator_state_rx) = network::init();
 
-
     println!("Hello");
-    // orders::main();
 
     loop {
         select! {
@@ -23,9 +21,6 @@ fn main() {
                 let button = msg.unwrap().call;
 
                 println!("received order | address {}, destination {}, button {}",address,destination,button);
-            }
-            default(Duration::from_secs(2)) => {
-                println!("Master is still alive!");
             }
         }
     }
