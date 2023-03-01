@@ -8,7 +8,7 @@ pub mod inputs;
 pub mod fsm;
 pub mod requests;
 pub mod config;
-
+pub mod network;
 fn main() -> std::io::Result<()> {
     let elevator = elev::Elevator::init(config::ELEV_ADDR, config::ELEV_NUM_FLOORS)?;
     println!("Elevator started:\n{:#?}", elevator);
@@ -27,6 +27,9 @@ fn main() -> std::io::Result<()> {
     let (doors_activate_tx, doors_closing_rx) = doors::init(obstruction_rx);
     println!("module initialized: doors");
 
+    // INITIALIZE NETWORK MODULE
+    let send_to_master_tx= network::init();
+
     // INITIALIZE REQUESTS MODULE
     let (
         requests_should_stop_rx, 
@@ -35,6 +38,7 @@ fn main() -> std::io::Result<()> {
         elevator.clone(),
         call_button_rx,
         floor_sensor_rx,
+        send_to_master_tx
     );
     println!("module initialized: requests");
 
