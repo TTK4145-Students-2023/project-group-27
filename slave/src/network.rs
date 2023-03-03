@@ -1,12 +1,10 @@
 use std::thread::spawn;
 use std::net;
 use std::process;
-//use std::thread::*;
 use crossbeam_channel::{Sender, unbounded};
-//use driver_rust::elevio::{poll, elev};
 use network_rust::udpnet;
 
-use crate::config::{PORT};
+use crate::config::{ORDER_PORT, STATE_PORT};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct HallOrder {
@@ -49,12 +47,12 @@ pub fn init() -> (
     let (send_elevator_state_tx, send_elevator_state_rx) = unbounded::<ElevatorState>();
 
     spawn(move || {
-        if udpnet::bcast::tx(PORT, send_hall_order_rx).is_err() {
+        if udpnet::bcast::tx(ORDER_PORT, send_hall_order_rx).is_err() {
             process::exit(1);
         }
     });
     spawn(move || {
-        if udpnet::bcast::tx(PORT, send_elevator_state_rx).is_err() {
+        if udpnet::bcast::tx(STATE_PORT, send_elevator_state_rx).is_err() {
             process::exit(1);
         }
     });
