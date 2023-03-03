@@ -15,7 +15,7 @@ struct HRAElevState {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 struct HRAInput {
-    hall_requests: Vec<[bool; 2]>,
+    hall_requests: [[bool; 2]; config::ELEV_NUM_FLOORS as usize],
     states: HashMap<String, HRAElevState>
 }
 
@@ -23,7 +23,7 @@ pub fn test_hall_assigner() {
     let exec_name = "hall_request_assigner";
 
     let test_input = HRAInput {
-        hall_requests: Vec::from([[false, false], [true, false], [false, false], [false, true]]),
+        hall_requests: [[false, false], [true, false], [false, false], [false, true]],
         states: HashMap::from([
             (String::from("one"), HRAElevState{
                 behaviour: String::from("moving"),
@@ -40,7 +40,8 @@ pub fn test_hall_assigner() {
         ]),
     };
 
-    let command = "./".to_owned() + exec_name + " -i '" + serde_json::to_string(&test_input).unwrap().as_str() + "'";
+    let json_arg = serde_json::to_string(&test_input).unwrap();
+    let command = "./".to_owned() + exec_name + " -i '" + json_arg.as_str() + "'";
     // THIS ONLY WORKS FOR UNIX
     let result = Command::new("sh")
         .arg("-c")
@@ -50,5 +51,5 @@ pub fn test_hall_assigner() {
 
     let expected = "{\"one\":[[false,false],[false,false],[false,false],[false,true]],\"two\":[[false,false],[true,false],[false,false],[false,false]]}\n";
     let actual = String::from_utf8(result.stdout).unwrap();
-    assert_eq!(expected, actual)
+    assert_eq!(expected, actual);
 }

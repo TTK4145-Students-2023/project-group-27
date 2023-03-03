@@ -13,7 +13,7 @@ fn main() {
     let (receive_hall_order_rx, _receive_elevator_state_rx) = network::init();
 
     println!("Hello");
-    thread::spawn(move || orders::main());
+    //thread::spawn(move || orders::main());
 
     test_hall_assigner::test_hall_assigner();
 
