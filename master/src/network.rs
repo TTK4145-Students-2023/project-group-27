@@ -95,7 +95,10 @@ pub fn main() {
                 for (id, data) in connected_elevators.clone() {
                     states.insert(id, data.state);
                 }
-                let output = assign_orders(hall_requests, states);
+                let output = match assign_orders(hall_requests, states) {
+                    Ok(result) => result,
+                    Err(_) => continue,
+                };
                 println!("{:#?}", output);
 
                 // broadcast assigned orders

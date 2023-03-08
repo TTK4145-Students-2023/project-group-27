@@ -24,7 +24,7 @@ pub struct HRAInput {
 pub fn assign_orders(
     hall_requests: [[bool; 2]; config::ELEV_NUM_FLOORS as usize],
     states: HashMap<String, HRAElevState>
-) -> HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]> {
+) -> Result<HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]>, serde_json::Error> {
     let input = HRAInput {
         hall_requests: hall_requests,
         states: states
@@ -37,6 +37,5 @@ pub fn assign_orders(
         .output()
         .expect("failed to call hall request assigner");
     let str_result = String::from_utf8(result.stdout).unwrap();
-    let output: HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]> = serde_json::from_str(&str_result).unwrap();
-    output
+    serde_json::from_str(&str_result)
 }
