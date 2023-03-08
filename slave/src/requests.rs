@@ -22,7 +22,7 @@ pub fn init(
         }
     }
 
-    let (requests_should_stop_tx, requests_should_stop_rx) = unbounded();
+    let (should_stop_tx, should_stop_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
     let (hall_requests_tx, hall_requests_rx) = unbounded();
     let (cab_requests_tx, cab_requests_rx) = unbounded();
@@ -32,12 +32,12 @@ pub fn init(
         cab_button_rx, 
         hall_requests_rx,
         button_light_tx,
-        requests_should_stop_tx,
+        should_stop_tx,
         requests_next_direction_tx,
         cab_requests_tx,
         elevator_data_rx
     ));
-    (requests_should_stop_rx, 
+    (should_stop_rx, 
      requests_next_direction_rx, 
      hall_requests_tx,
      cab_requests_rx,
@@ -48,7 +48,7 @@ fn main(
     cab_button_rx: Receiver<poll::CallButton>, 
     hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
     button_light_tx: Sender<(u8,u8,bool)>,
-    requests_should_stop_tx: Sender<bool>,
+    should_stop_tx: Sender<bool>,
     requests_next_direction_tx: Sender<u8>,
     cab_requests_tx: Sender<[bool; ELEV_NUM_FLOORS as usize]>,
     elevator_data_rx: Receiver<(u8,u8,bool)>
@@ -71,44 +71,24 @@ fn main(
                 for floor in 0..ELEV_NUM_FLOORS {
                     for btn in elev::HALL_UP..=elev::HALL_DOWN {
                         orders[floor as usize][btn as usize] = msg.unwrap()[floor as usize][btn as usize];
-                        println!("{:#?}", orders);
+                        //println!("{:#?}", orders);
                         button_light_tx.send((floor, btn, orders[floor as usize][btn as usize])).unwrap();
                     }
                 }
             },
             recv(elevator_data_rx) -> data => {
-                let last_floor = data.unwrap().0;
-                let last_direction = data.unwrap().1;
+                let floor = data.unwrap().0;
+                let direction = data.unwrap().1;
                 let is_stopped = data.unwrap().2;
-                if should_stop(orders, last_floor, last_direction) && !is_stopped {
-                    requests_should_stop_tx.send(true).unwrap();
-                    clear_order(button_light_tx.clone(), &mut orders, last_floor, last_direction);
+                if should_stop(orders, floor, direction) && !is_stopped {
+                    should_stop_tx.send(true).unwrap();
+                    orders[floor as usize][elev::CAB as usize] = false;
+                    button_light_tx.send((floor, elev::CAB, false)).unwrap();
                 }
-                let next_direction = next_direction(orders, last_floor, last_direction);
+                let next_direction = next_direction(orders, floor, direction);
                 requests_next_direction_tx.send(next_direction).unwrap();
-                // if !elevator.floor_sensor().is_none() {
-                //     clear_order(button_light_tx, &mut orders, last_floor, next_direction);
-                // }
             },
         }
-    }
-}
-
-fn clear_order(
-    button_light_tx: Sender<(u8,u8,bool)>,
-    orders: &mut [[bool; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize],
-    floor: u8,
-    dirn: u8
-) {
-    let call_in_direction = if dirn == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN };
-    orders[floor as usize][call_in_direction as usize] = false;
-    button_light_tx.send((floor, call_in_direction, false)).unwrap();
-    orders[floor as usize][elev::CAB as usize] = false;
-    button_light_tx.send((floor, elev::CAB, false)).unwrap();
-    if floor == 0 || floor == ELEV_NUM_FLOORS - 1 {
-        let call_in_other_direction = if call_in_direction == elev::HALL_UP { elev::HALL_DOWN } else { elev::HALL_UP };
-        orders[floor as usize][call_in_other_direction as usize] = false;
-        button_light_tx.send((floor, call_in_other_direction, false)).unwrap();
     }
 }
 
@@ -118,7 +98,7 @@ fn should_stop(
     dirn: u8
 ) -> bool {
     if cab_request_at_floor(orders, floor)
-    || requests_in_travel_direction(orders, floor, dirn)
+    || requests_in_direction_at_this_floor(orders, floor, dirn)
     || !further_requests_in_direction(orders, floor, dirn) {
         return true
     }
@@ -132,7 +112,7 @@ fn cab_request_at_floor(
     orders[floor as usize][elev::CAB as usize]
 }
 
-fn requests_in_travel_direction(
+fn requests_in_direction_at_this_floor(
     orders: [[bool; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize],
     floor: u8,
     dirn: u8,

@@ -1,8 +1,10 @@
 use std::thread::spawn;
 use std::time::Duration;
-
+use std::io::{stdout, Write};
 use crossbeam_channel::{select, Receiver, Sender, unbounded};
 use driver_rust::elevio::elev::{self, DIRN_DOWN};
+
+use crate::config;
 
 #[derive(PartialEq, Debug)]
 enum State {
@@ -51,22 +53,25 @@ fn main(
 ) {
     const UPDATE_FREQ: f64 = 0.25;
 
-    let mut last_floor: u8;
-    let mut last_direction: u8 = DIRN_DOWN;
+    let mut floor: u8 = config::ELEV_NUM_FLOORS;
+    let mut direction: u8 = DIRN_DOWN;
     let mut state: State = State::Moving;
 
-    println!("started state machine in state: {:#?}", state);
+    println!("\n\n*** Started state machine in state: {:#?} ***\n\n", state);
 
     // DRIVE TO NEAREST FLOOR TO GET TO CONSISTENT STATE
-    let floor = floor_sensor_rx.recv().unwrap();
-    last_floor = floor;
-    floor_indicator_tx.send(last_floor).unwrap();
+
+    let mut stdout = stdout();
 
     loop {
         select! {
-            recv(floor_sensor_rx) -> floor => {
-                last_floor = floor.unwrap();
-                floor_indicator_tx.send(last_floor).unwrap();
+            recv(floor_sensor_rx) -> msg => {
+                floor = msg.unwrap();
+                print!("\rSensor detected floor: {}", floor);
+                stdout.flush().unwrap();
+                floor_indicator_tx.send(floor).unwrap();
+                let is_stopped = state != State::Moving;
+                elevator_data_tx.send((floor, direction, is_stopped)).unwrap();
             },
             recv(should_stop_rx) -> _ => {
                 match state {
@@ -88,7 +93,7 @@ fn main(
                         match dirn.unwrap() {
                             elev::DIRN_UP | elev::DIRN_DOWN => {
                                 motor_direction_tx.send(dirn.unwrap()).unwrap();
-                                last_direction = dirn.unwrap();
+                                direction = dirn.unwrap();
                                 state = State::Moving;
                             },
                             _ => ()
@@ -108,8 +113,9 @@ fn main(
                 }
             },
             default(Duration::from_secs_f64(UPDATE_FREQ)) => {
-                let is_stopped = state != State::Moving;
-                elevator_data_tx.send((last_floor, last_direction, is_stopped)).unwrap();
+                if state != State::Moving { // TODO: consider negating this logic
+                    elevator_data_tx.send((floor, direction, true)).unwrap();
+                }
             },
         }
         let state_str = match state {
@@ -119,8 +125,8 @@ fn main(
         };
         elevator_state_tx.send((
             String::from(state_str),
-            last_floor,
-            last_direction,
+            floor,
+            direction,
         )).unwrap();
     }
 }

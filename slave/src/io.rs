@@ -80,6 +80,7 @@ pub fn init() -> (
             elevator.door_light(on);
         }});
     }
+    door_light_tx.send(false).unwrap();
 
     let (floor_indicator_tx, floor_indicator_rx) = unbounded();
     {
