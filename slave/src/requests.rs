@@ -57,7 +57,7 @@ fn main(
 
     loop {
         select! {
-            recv(cab_button_rx) -> msg => {
+            recv(cab_button_rx) -> msg => { //TODO: Clear cab order which is assigned on same floor as current_floor 
                 let destination = msg.as_ref().unwrap().floor;
                 orders[destination as usize][elev::CAB as usize] = true;
                 button_light_tx.send((destination, elev::CAB, true)).unwrap();
@@ -87,6 +87,7 @@ fn main(
                 }
                 let next_direction = next_direction(orders, floor, direction);
                 requests_next_direction_tx.send(next_direction).unwrap();
+                //TODO: Clear cab order which is assigned on same floor as current_floor
             },
         }
     }
