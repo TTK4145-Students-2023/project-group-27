@@ -83,7 +83,7 @@ fn main(
         select! {
             recv(command_rx) -> command => {
                 let hall_requests = command.unwrap()[&id];
-                for index in 0..new_hall_orders.len() {
+                for index in (0..new_hall_orders.len()).rev() {
                     let floor = new_hall_orders[index].floor;
                     let call = new_hall_orders[index].call;
                     if hall_requests[floor as usize][call as usize] {
