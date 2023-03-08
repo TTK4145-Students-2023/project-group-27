@@ -1,136 +1,114 @@
 use std::thread::spawn;
-use std::time::Duration;
 
 use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use driver_rust::elevio::{poll, elev};
-// ---
-//use std::process;
-//use std::thread::*;
-//use std::process::Command;
-//use std::env;
-//use network_rust::udpnet;
-// ---
 
 use crate::config::{ELEV_NUM_FLOORS, ELEV_NUM_BUTTONS};
-use crate::network::{HallOrder, hall_order};
 
 pub fn init(
-    elevator: elev::Elevator,
-    call_button_rx: Receiver<poll::CallButton>,
-    floor_sensor_rx: Receiver<u8>,
-    send_to_master_tx: Sender<HallOrder>
+    cab_button_rx: Receiver<poll::CallButton>,
+    button_light_tx: Sender<(u8,u8,bool)>,
 ) -> (
     Receiver<bool>, 
-    Receiver<u8>
+    Receiver<u8>,
+    Sender<[[bool; 2]; ELEV_NUM_FLOORS as usize]>,
+    Receiver<[bool; ELEV_NUM_FLOORS as usize]>,
+    Sender<(u8,u8,bool)>
 ) {
-    
     // CLEAR ALL LIGHTS
     for floor in 0..ELEV_NUM_FLOORS {
         for btn in elev::HALL_UP..=elev::CAB {
-            elevator.call_button_light(floor, btn, false);
+            button_light_tx.send((floor, btn, false)).unwrap();
         }
     }
 
     let (requests_should_stop_tx, requests_should_stop_rx) = unbounded();
     let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
-    // ---
-    
-    // ---
+    let (hall_requests_tx, hall_requests_rx) = unbounded();
+    let (cab_requests_tx, cab_requests_rx) = unbounded();
+    let (elevator_data_tx, elevator_data_rx) = unbounded();
+
     spawn(move || main(
-        elevator,
-        call_button_rx, 
-        floor_sensor_rx,
+        cab_button_rx, 
+        hall_requests_rx,
+        button_light_tx,
         requests_should_stop_tx,
         requests_next_direction_tx,
-        // ---
-        send_to_master_tx
-        // ---
+        cab_requests_tx,
+        elevator_data_rx
     ));
-    // --- Thread for sending Hall orders through UDP Broadcast
-    
-    // ---
-    (requests_should_stop_rx, requests_next_direction_rx)
+    (requests_should_stop_rx, 
+     requests_next_direction_rx, 
+     hall_requests_tx,
+     cab_requests_rx,
+     elevator_data_tx)
 }
 
 fn main(
-    elevator: elev::Elevator,
-    call_button_rx: Receiver<poll::CallButton>, 
-    floor_sensor_rx: Receiver<u8>,
+    cab_button_rx: Receiver<poll::CallButton>, 
+    hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
+    button_light_tx: Sender<(u8,u8,bool)>,
     requests_should_stop_tx: Sender<bool>,
     requests_next_direction_tx: Sender<u8>,
-    // ---
-    send_to_master_tx: Sender<HallOrder>
-    // ---
-    
+    cab_requests_tx: Sender<[bool; ELEV_NUM_FLOORS as usize]>,
+    elevator_data_rx: Receiver<(u8,u8,bool)>
 ) {
-    let send_new_direction_freq: Duration = Duration::from_secs_f64(0.5);
-
     let mut orders = [[false; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize];
-    let mut last_floor: u8 = 0;
-    let mut last_direction: u8 = elev::DIRN_DOWN;
 
     loop {
         select! {
-            recv(call_button_rx) -> msg => {
-                // WHEN WE RECIEVE A NEW ORDER -> ADD TO MATRIX
+            recv(cab_button_rx) -> msg => {
                 let destination = msg.as_ref().unwrap().floor;
-                let button = msg.unwrap().call;
-                // THIS PART CHECKS IF ORDER IS FROM CAB, ELEVATOR TREATS OWN CAB ORDERS
-                if button == elev::CAB {
-                    orders[destination as usize][button as usize] = true;
-                    elevator.call_button_light(destination, button, true);
-                    println!("Recieved order | floor: {}, dirn: {}", destination, button);
-                    if destination == last_floor && !elevator.floor_sensor().is_none() {
-                        requests_should_stop_tx.send(true).unwrap();
-                    }  
+                orders[destination as usize][elev::CAB as usize] = true;
+                button_light_tx.send((destination, elev::CAB, true)).unwrap();
+                let mut cab_requests = [false; ELEV_NUM_FLOORS as usize];
+                for floor in 0..ELEV_NUM_FLOORS {
+                    cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
                 }
-                else {
-                    send_to_master_tx.send(hall_order(destination, button)).unwrap();
-                    println!("Sending order to master | floor: {}, button: {}", destination, button);
-                }
-                // ---
-                
+                cab_requests_tx.send(cab_requests).unwrap();
             },
-            recv(floor_sensor_rx) -> floor => {
-                // WHEN WE PASS A FLOOR -> CHECK IF WE SHOULD STOP
-                // IF WE STOP: SEND MESSAGE AND CLEAR ORDER
-                last_floor = floor.unwrap();
-                elevator.floor_indicator(last_floor);
-                if should_stop(orders, floor.unwrap(), last_direction) {
+            recv(hall_requests_rx) -> msg => {
+                for floor in 0..ELEV_NUM_FLOORS {
+                    for btn in elev::HALL_UP..=elev::HALL_DOWN {
+                        orders[floor as usize][btn as usize] = msg.unwrap()[floor as usize][btn as usize];
+                        println!("{:#?}", orders);
+                        button_light_tx.send((floor, btn, orders[floor as usize][btn as usize])).unwrap();
+                    }
+                }
+            },
+            recv(elevator_data_rx) -> data => {
+                let last_floor = data.unwrap().0;
+                let last_direction = data.unwrap().1;
+                let is_stopped = data.unwrap().2;
+                if should_stop(orders, last_floor, last_direction) && !is_stopped {
                     requests_should_stop_tx.send(true).unwrap();
-                    clear_order(elevator.clone(), &mut orders, floor.unwrap(), last_direction);
+                    clear_order(button_light_tx.clone(), &mut orders, last_floor, last_direction);
                 }
-            },
-            default(send_new_direction_freq) => {
-                // SPAM NEW DIRECTION, FSM WILL IGNORE IF OBSOLETE
                 let next_direction = next_direction(orders, last_floor, last_direction);
                 requests_next_direction_tx.send(next_direction).unwrap();
-                if !elevator.floor_sensor().is_none() {
-                    clear_order(elevator.clone(), &mut orders, last_floor, next_direction);
-                }
-                last_direction = if next_direction != elev::DIRN_STOP { next_direction } else { last_direction };
-            }
+                // if !elevator.floor_sensor().is_none() {
+                //     clear_order(button_light_tx, &mut orders, last_floor, next_direction);
+                // }
+            },
         }
     }
 }
 
 fn clear_order(
-    elevator: elev::Elevator,
+    button_light_tx: Sender<(u8,u8,bool)>,
     orders: &mut [[bool; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize],
     floor: u8,
     dirn: u8
 ) {
+    let call_in_direction = if dirn == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN };
+    orders[floor as usize][call_in_direction as usize] = false;
+    button_light_tx.send((floor, call_in_direction, false)).unwrap();
+    orders[floor as usize][elev::CAB as usize] = false;
+    button_light_tx.send((floor, elev::CAB, false)).unwrap();
     if floor == 0 || floor == ELEV_NUM_FLOORS - 1 {
-        for btn in elev::HALL_UP..=elev::CAB {
-            orders[floor as usize][btn as usize] = false;
-            elevator.call_button_light(floor, btn, false);
-        }
-    } else {
-        let button = if dirn == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN };
-        orders[floor as usize][button as usize] = false;
-        elevator.call_button_light(floor, button, false);
-        orders[floor as usize][elev::CAB as usize] = false;
-        elevator.call_button_light(floor, elev::CAB, false);
+        let call_in_other_direction = if call_in_direction == elev::HALL_UP { elev::HALL_DOWN } else { elev::HALL_UP };
+        orders[floor as usize][call_in_other_direction as usize] = false;
+        button_light_tx.send((floor, call_in_other_direction, false)).unwrap();
     }
 }
 

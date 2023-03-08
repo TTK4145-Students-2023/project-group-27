@@ -3,17 +3,26 @@ use std::thread::spawn;
 
 use crossbeam_channel::{unbounded, select, Sender, Receiver};
 
-pub fn init(obstruction_rx: Receiver<bool>) -> (Sender<bool>, Receiver<bool>) {
+pub fn init(
+    obstruction_rx: Receiver<bool>,
+    door_light_tx: Sender<bool>
+) -> (Sender<bool>, Receiver<bool>) {
     let (doors_activate_tx, doors_activate_rx) = unbounded();
     let (doors_closing_tx, doors_closing_rx) = unbounded();
-    spawn(move || main(doors_closing_tx, doors_activate_rx, obstruction_rx));
+    spawn(move || main(
+        doors_closing_tx, 
+        doors_activate_rx, 
+        obstruction_rx,
+        door_light_tx
+    ));
     (doors_activate_tx, doors_closing_rx)
 }
 
 fn main(
     doors_closing_tx: Sender<bool>, 
     doors_activate_rx: Receiver<bool>, 
-    obstruction_rx: Receiver<bool>
+    obstruction_rx: Receiver<bool>,
+    door_light_tx: Sender<bool>
 ) {
     const TIMER_DURATION: f64 = 3.0;
     let mut active: bool = false;
@@ -25,11 +34,15 @@ fn main(
                     obstruction_rx.recv().unwrap(); // block until next message from obstruction
                 }
             },
-            recv(doors_activate_rx) -> _ => active = true,
+            recv(doors_activate_rx) -> _ => {
+                active = true;
+                door_light_tx.send(true).unwrap();
+            },
             default(Duration::from_secs_f64(TIMER_DURATION)) => {
                 if active {
                     doors_closing_tx.send(true).unwrap();
                     active = false;
+                    door_light_tx.send(false).unwrap();
                 }
             },
         }

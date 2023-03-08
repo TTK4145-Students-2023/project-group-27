@@ -1,56 +1,71 @@
-use std::time::Duration;
-
 use crossbeam_channel::select;
-use driver_rust::elevio::elev;
 
 pub mod doors;
-pub mod inputs;
+pub mod io;
 pub mod fsm;
 pub mod requests;
 pub mod config;
 pub mod network;
-fn main() -> std::io::Result<()> {
-    let elevator = elev::Elevator::init(config::ELEV_ADDR, config::ELEV_NUM_FLOORS)?;
-    println!("Elevator started:\n{:#?}", elevator);
 
+fn main() -> std::io::Result<()> {
     // INITIALIZE INPUTS MODULE
-    let poll_period = Duration::from_millis(25);
     let (
-        call_button_rx, 
+        cab_button_rx, 
+        hall_button_rx, 
         floor_sensor_rx, 
         stop_button_rx, 
-        obstruction_rx
-    ) = inputs::init(elevator.clone(), poll_period);
+        obstruction_rx,
+        button_light_tx,
+        motor_direction_tx,
+        door_light_tx,
+        floor_indicator_tx,
+    ) = io::init();
     println!("module initialized: inputs");
 
     // INITIALIZE DOORS MODULE
-    let (doors_activate_tx, doors_closing_rx) = doors::init(obstruction_rx);
+    let (
+        doors_activate_tx, 
+        doors_closing_rx
+    ) = doors::init(
+        obstruction_rx,
+        door_light_tx
+    );
     println!("module initialized: doors");
-
-    // INITIALIZE NETWORK MODULE
-    let (send_hall_order_tx,_send_elevator_state_tx)= network::init();
 
     // INITIALIZE REQUESTS MODULE
     let (
-        requests_should_stop_rx, 
-        requests_next_direction_rx
+        should_stop_rx, 
+        next_direction_rx, 
+        hall_request_tx,
+        cab_requests_rx,
+        elevator_data_tx
     ) = requests::init(
-        elevator.clone(),
-        call_button_rx,
-        floor_sensor_rx,
-        send_hall_order_tx
+        cab_button_rx,
+        button_light_tx,
     );
     println!("module initialized: requests");
 
     // INITIALIZE FSM MODULE
-    fsm::init(
-        elevator.clone(),
-        requests_should_stop_rx, 
+    let elevator_state_rx = fsm::init(
+        should_stop_rx, 
         doors_activate_tx,
-        requests_next_direction_rx,
-        doors_closing_rx
+        next_direction_rx,
+        doors_closing_rx,
+        floor_sensor_rx,
+        floor_indicator_tx,
+        motor_direction_tx,
+        elevator_data_tx
     );
     println!("module initialized: fsm");
+
+    // INITIALIZE NETWORK MODULE
+    network::init(
+        hall_button_rx,
+        hall_request_tx,
+        elevator_state_rx,
+        cab_requests_rx,
+    );
+    println!("module initialized: network");
 
     loop {
         select! {
