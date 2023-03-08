@@ -82,7 +82,11 @@ fn main(
     loop {
         select! {
             recv(command_rx) -> command => {
-                let hall_requests = command.unwrap()[&id];
+                let cd = command.unwrap(); 
+                let hall_requests = match cd.get(&id) {
+                    Some(hr) => hr,
+                    None => continue,
+                };
                 for index in (0..new_hall_orders.len()).rev() {
                     let floor = new_hall_orders[index].floor;
                     let call = new_hall_orders[index].call;
@@ -90,7 +94,7 @@ fn main(
                         new_hall_orders.remove(index);
                     }
                 }
-                hall_requests_tx.send(hall_requests).unwrap();
+                hall_requests_tx.send(*hall_requests).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 new_hall_orders.push(HallOrder {
