@@ -1,7 +1,7 @@
-use std::thread::spawn;
 use std::time::Duration;
 use std::io::{stdout, Write};
-use crossbeam_channel::{select, Receiver, Sender, unbounded};
+
+use crossbeam_channel::{select, Receiver, Sender};
 use driver_rust::elevio::elev::{self, DIRN_DOWN};
 
 use crate::config;
@@ -13,34 +13,7 @@ enum State {
     DoorOpen,
 }
 
-pub fn init(
-    should_stop_rx: Receiver<bool>,
-    doors_activate_tx: Sender<bool>,
-    next_direction_rx: Receiver<u8>,
-    doors_closing_rx: Receiver<bool>,
-    floor_sensor_rx: Receiver<u8>,
-    floor_indicator_tx: Sender<u8>,
-    motor_direction_tx: Sender<u8>,
-    elevator_data_tx: Sender<(u8,u8,bool)>,
-) -> Receiver<(String,u8,u8)> {
-    let (elevator_state_tx, elevator_state_rx) = unbounded();
-
-    spawn(move || main(
-        should_stop_rx, 
-        doors_activate_tx, 
-        next_direction_rx,
-        doors_closing_rx,
-        motor_direction_tx,
-        floor_sensor_rx,
-        floor_indicator_tx,
-        elevator_state_tx,
-        elevator_data_tx,
-    ));
-
-    elevator_state_rx
-}
-
-fn main(
+pub fn main(
     should_stop_rx: Receiver<bool>,
     doors_activate_tx: Sender<bool>,
     next_direction_rx: Receiver<u8>,

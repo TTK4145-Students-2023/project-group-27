@@ -1,19 +1,16 @@
-use std::thread::spawn;
-
-use crossbeam_channel::{Sender, Receiver, unbounded, select};
+use crossbeam_channel::{Sender, Receiver, select};
 use driver_rust::elevio::{poll, elev};
 
 use crate::config::{ELEV_NUM_FLOORS, ELEV_NUM_BUTTONS};
 
-pub fn init(
-    cab_button_rx: Receiver<poll::CallButton>,
+pub fn main(
+    cab_button_rx: Receiver<poll::CallButton>, 
+    hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
     button_light_tx: Sender<(u8,u8,bool)>,
-) -> (
-    Receiver<bool>, 
-    Receiver<u8>,
-    Sender<[[bool; 2]; ELEV_NUM_FLOORS as usize]>,
-    Receiver<[bool; ELEV_NUM_FLOORS as usize]>,
-    Sender<(u8,u8,bool)>
+    should_stop_tx: Sender<bool>,
+    next_direction_tx: Sender<u8>,
+    cab_requests_tx: Sender<[bool; ELEV_NUM_FLOORS as usize]>,
+    elevator_data_rx: Receiver<(u8,u8,bool)>
 ) {
     // CLEAR ALL LIGHTS
     for floor in 0..ELEV_NUM_FLOORS {
@@ -22,37 +19,6 @@ pub fn init(
         }
     }
 
-    let (should_stop_tx, should_stop_rx) = unbounded();
-    let (requests_next_direction_tx, requests_next_direction_rx) = unbounded();
-    let (hall_requests_tx, hall_requests_rx) = unbounded();
-    let (cab_requests_tx, cab_requests_rx) = unbounded();
-    let (elevator_data_tx, elevator_data_rx) = unbounded();
-
-    spawn(move || main(
-        cab_button_rx, 
-        hall_requests_rx,
-        button_light_tx,
-        should_stop_tx,
-        requests_next_direction_tx,
-        cab_requests_tx,
-        elevator_data_rx
-    ));
-    (should_stop_rx, 
-     requests_next_direction_rx, 
-     hall_requests_tx,
-     cab_requests_rx,
-     elevator_data_tx)
-}
-
-fn main(
-    cab_button_rx: Receiver<poll::CallButton>, 
-    hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
-    button_light_tx: Sender<(u8,u8,bool)>,
-    should_stop_tx: Sender<bool>,
-    requests_next_direction_tx: Sender<u8>,
-    cab_requests_tx: Sender<[bool; ELEV_NUM_FLOORS as usize]>,
-    elevator_data_rx: Receiver<(u8,u8,bool)>
-) {
     let mut orders = [[false; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize];
 
     loop {
@@ -86,7 +52,7 @@ fn main(
                     button_light_tx.send((floor, elev::CAB, false)).unwrap();
                 }
                 let next_direction = next_direction(orders, floor, direction);
-                requests_next_direction_tx.send(next_direction).unwrap();
+                next_direction_tx.send(next_direction).unwrap();
                 //TODO: Clear cab order which is assigned on same floor as current_floor
             },
         }

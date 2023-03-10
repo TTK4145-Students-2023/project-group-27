@@ -35,21 +35,7 @@ fn get_id() -> String {
     format!("{}",local_ip)
 }
 
-pub fn init(
-    hall_button_rx: Receiver<poll::CallButton>,
-    hall_request_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
-    elevator_state_rx: Receiver<(String,u8,u8)>,
-    cab_requests_rx: Receiver<[bool; config::ELEV_NUM_FLOORS as usize]>,
-) {
-    spawn(move || main(
-        hall_button_rx, 
-        hall_request_tx, 
-        elevator_state_rx,
-        cab_requests_rx,
-    ));
-}
-
-fn main(
+pub fn main(
     hall_button_rx: Receiver<poll::CallButton>,
     hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
     elevator_state_rx: Receiver<(String,u8,u8)>,
