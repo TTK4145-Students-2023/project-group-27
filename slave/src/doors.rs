@@ -14,8 +14,9 @@ pub fn main(
     loop {
         select! {
             recv(obstruction_rx) -> msg => {
+                // received obstruction -> block this thread if doors are open
                 if active && msg.unwrap() {
-                    obstruction_rx.recv().unwrap(); // block until next message from obstruction
+                    obstruction_rx.recv().unwrap();
                 }
             },
             recv(doors_activate_rx) -> _ => {

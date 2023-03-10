@@ -91,6 +91,8 @@ pub fn main(
                 }
             },
         }
+
+        // for every loop: send state information to network module
         let state_str = match state {
             State::Idle => "idle",
             State::Moving => "moving",

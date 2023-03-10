@@ -23,7 +23,8 @@ pub struct ElevatorMessage {
     pub floor: u8,
     pub direction: String,
     pub cab_requests: [bool; config::ELEV_NUM_FLOORS as usize],
-    pub new_hall_orders: Vec<HallOrder>
+    pub new_hall_orders: Vec<HallOrder>,
+    pub served_hall_orders: Vec<HallOrder>,
 }
 
 fn get_id() -> String {
@@ -38,10 +39,11 @@ fn get_id() -> String {
 pub fn main(
     hall_button_rx: Receiver<poll::CallButton>,
     hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    cleared_request_rx: Receiver<poll::CallButton>, 
     elevator_state_rx: Receiver<(String,u8,u8)>,
     cab_requests_rx: Receiver<[bool; config::ELEV_NUM_FLOORS as usize]>,
 ) {
-    const SEND_UPDATE_FREQUENCY: f64 = 0.25;
+    const SEND_UPDATE_FREQUENCY: f64 = 0.1;
     
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     spawn(move || {
@@ -64,15 +66,18 @@ pub fn main(
     let mut direction = String::from("up");
     let mut cab_requests = [false; config::ELEV_NUM_FLOORS as usize];
     let mut new_hall_orders: Vec<HallOrder> = Vec::new();
+    let mut served_hall_orders: Vec<HallOrder> = Vec::new();
     
     loop {
         select! {
-            recv(command_rx) -> command => {
-                let cd = command.unwrap(); 
-                let hall_requests = match cd.get(&id) {
+            recv(command_rx) -> msg => {
+                // collect hall requests to be served from this elevator
+                let command = msg.unwrap(); 
+                let hall_requests = match command.get(&id) {
                     Some(hr) => hr,
-                    None => continue,
+                    None => continue, // master does not yet know about this elevator -> discard message
                 };
+                // remove unconfirmed new hall orders from queue
                 for index in (0..new_hall_orders.len()).rev() {
                     let floor = new_hall_orders[index].floor;
                     let call = new_hall_orders[index].call;
@@ -80,15 +85,33 @@ pub fn main(
                         new_hall_orders.remove(index);
                     }
                 }
+                // remove unconfirmed served hall orders from queue
+                for index in (0..served_hall_orders.len()).rev() {
+                    let floor = served_hall_orders[index].floor;
+                    let call = served_hall_orders[index].call;
+                    if !hall_requests[floor as usize][call as usize] {
+                        served_hall_orders.remove(index);
+                    }
+                }
+                // pass hall requests to requests module
                 hall_requests_tx.send(*hall_requests).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
+                // append new hall order to queue
                 new_hall_orders.push(HallOrder {
                     floor: hall_request.as_ref().unwrap().floor,
                     call: hall_request.unwrap().call,
                 });
             },
+            recv(cleared_request_rx) -> cleared_request => {
+                // append served hall order to queue
+                served_hall_orders.push(HallOrder {
+                    floor: cleared_request.as_ref().unwrap().floor,
+                    call: cleared_request.unwrap().call,
+                });
+            },
             recv(elevator_state_rx) -> state => {
+                // collect elevator state info from FSM
                 behaviour = state.clone().unwrap().0;
                 floor = state.clone().unwrap().1;
                 direction = match state.unwrap().2 {
@@ -98,16 +121,19 @@ pub fn main(
                 };
             },
             recv(cab_requests_rx) -> msg => {
+                // collect this elevator's cab orders
                 cab_requests = msg.unwrap();
             },
             default(Duration::from_secs_f64(SEND_UPDATE_FREQUENCY)) => {
+                // send state and collected orders to master
                 elevator_message_tx.send(ElevatorMessage { 
                     id: id.clone(), 
                     behaviour: behaviour.clone(), 
                     floor: floor, 
                     direction: direction.clone(), 
                     cab_requests: cab_requests, 
-                    new_hall_orders: new_hall_orders.clone()
+                    new_hall_orders: new_hall_orders.clone(),
+                    served_hall_orders: served_hall_orders.clone(),
                 }).unwrap();
             }
         }

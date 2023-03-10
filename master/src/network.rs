@@ -22,7 +22,8 @@ pub struct ElevatorMessage {
     pub floor: u8,
     pub direction: String,
     pub cab_requests: [bool; config::ELEV_NUM_FLOORS as usize],
-    pub new_hall_orders: Vec<HallOrder>
+    pub new_hall_orders: Vec<HallOrder>,
+    pub served_hall_orders: Vec<HallOrder>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -86,12 +87,16 @@ pub fn main() {
                     hall_requests[order.floor as usize][order.call as usize] = true;
                 }
 
+                // remove served hall orders
+                for order in msg.clone().unwrap().served_hall_orders {
+                    hall_requests[order.floor as usize][order.call as usize] = false;
+                }
+
                 // clear served order
                 let dirn = if direction == "up" { HALL_UP } else { HALL_DOWN };
                 let other_dirn = if direction == "up" { HALL_DOWN } else { HALL_UP };
                 hall_requests[floor as usize][dirn as usize] = false;
                 if !further_requests_in_direction(hall_requests, floor, dirn) {
-                    //println!("Clearing the two orders at floor: {}, dirn: {}, other_dirn: {}", floor, dirn, other_dirn);
                     hall_requests[floor as usize][other_dirn as usize] = false;
                 }
 
@@ -102,9 +107,8 @@ pub fn main() {
                 }
                 let output = match assign_orders(hall_requests, states) {
                     Ok(result) => result,
-                    Err(_) => continue,
+                    Err(_) => continue, // give up and try again next time :)
                 };
-                //println!("{:#?}", output);
 
                 // broadcast assigned orders
                 command_tx.send(output).unwrap();
