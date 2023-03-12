@@ -18,7 +18,6 @@ pub fn init() -> (
     Sender<u8>,
 ) {
     let elevator = elev::Elevator::init(config::ELEV_ADDR, config::ELEV_NUM_FLOORS).unwrap();
-    println!("Elevator started:\n{:#?}", elevator);
 
     let poll_period = Duration::from_millis(25);
     let (cab_button_tx, cab_button_rx) = unbounded();

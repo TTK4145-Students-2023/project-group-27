@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crossbeam_channel::{Sender, Receiver, select};
 use driver_rust::elevio::{poll, elev};
 
@@ -11,7 +13,8 @@ pub fn main(
     should_stop_tx: Sender<bool>,
     next_direction_tx: Sender<u8>,
     cab_requests_tx: Sender<[bool; ELEV_NUM_FLOORS as usize]>,
-    elevator_data_rx: Receiver<(u8,u8,bool)>
+    elevator_data_rx: Receiver<(u8,u8,bool)>,
+    orders_tx: Sender<[[bool; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize]>,
 ) {
     // CLEAR ALL LIGHTS
     for floor in 0..ELEV_NUM_FLOORS {
@@ -20,6 +23,7 @@ pub fn main(
         }
     }
 
+    const UPDATE_FREQ: f64 = 0.1;
     let mut orders = [[false; ELEV_NUM_BUTTONS as usize]; ELEV_NUM_FLOORS as usize];
 
     loop {
@@ -72,6 +76,9 @@ pub fn main(
                 let next_direction = next_direction(orders, floor, direction);
                 next_direction_tx.send(next_direction).unwrap();
                 //TODO: Clear cab order which is assigned on same floor as current_floor
+            },
+            default(Duration::from_secs_f64(UPDATE_FREQ)) => {
+                orders_tx.send(orders.clone()).unwrap();
             },
         }
     }

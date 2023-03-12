@@ -8,6 +8,7 @@ pub mod fsm;
 pub mod requests;
 pub mod config;
 pub mod network;
+pub mod debug;
 
 fn main() -> std::io::Result<()> {
     // INITIALIZE CHANNELS
@@ -20,6 +21,7 @@ fn main() -> std::io::Result<()> {
     let (cab_requests_tx, cab_requests_rx) = unbounded();
     let (elevator_data_tx, elevator_data_rx) = unbounded();
     let (elevator_state_tx, elevator_state_rx) = unbounded();
+    let (orders_tx, orders_rx) = unbounded();
 
     // INITIALIZE INPUTS MODULE
     let (
@@ -33,7 +35,6 @@ fn main() -> std::io::Result<()> {
         door_light_tx,
         floor_indicator_tx,
     ) = io::init();
-    println!("module initialized: inputs");
 
     // INITIALIZE DOORS MODULE
     thread::spawn(move || doors::main(
@@ -42,7 +43,6 @@ fn main() -> std::io::Result<()> {
         obstruction_rx,
         door_light_tx
     ));
-    println!("module initialized: doors");
 
     // INITIALIZE REQUESTS MODULE
     thread::spawn(move || requests::main(
@@ -53,9 +53,9 @@ fn main() -> std::io::Result<()> {
         should_stop_tx,
         next_direction_tx,
         cab_requests_tx,
-        elevator_data_rx
+        elevator_data_rx,
+        orders_tx,
     ));
-    println!("module initialized: requests");
 
     // INITIALIZE FSM MODULE
     thread::spawn(move || fsm::main(
@@ -69,17 +69,24 @@ fn main() -> std::io::Result<()> {
         elevator_state_tx,
         elevator_data_tx,
     ));
-    println!("module initialized: fsm");
 
     // INITIALIZE NETWORK MODULE
-    thread::spawn(move || network::main(
-        hall_button_rx, 
-        hall_requests_tx, 
-        cleared_request_rx,
+    {
+        let elevator_state_rx = elevator_state_rx.clone();
+        thread::spawn(move || network::main(
+            hall_button_rx, 
+            hall_requests_tx, 
+            cleared_request_rx,
+            elevator_state_rx,
+            cab_requests_rx,
+        ));
+    }
+
+    // INITIALIZE DEBUG MODULE
+    thread::spawn(move || debug::main(
+        orders_rx,
         elevator_state_rx,
-        cab_requests_rx,
     ));
-    println!("module initialized: network");
 
     loop {
         select! {

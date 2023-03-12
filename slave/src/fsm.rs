@@ -1,5 +1,4 @@
 use std::time::Duration;
-use std::io::{stdout, Write};
 
 use crossbeam_channel::{select, Receiver, Sender};
 use driver_rust::elevio::elev::{self, DIRN_DOWN};
@@ -30,18 +29,10 @@ pub fn main(
     let mut direction: u8 = DIRN_DOWN;
     let mut state: State = State::Moving;
 
-    println!("\n\n*** Started state machine in state: {:#?} ***\n\n", state);
-
-    // DRIVE TO NEAREST FLOOR TO GET TO CONSISTENT STATE
-
-    let mut stdout = stdout();
-
     loop {
         select! {
             recv(floor_sensor_rx) -> msg => {
                 floor = msg.unwrap();
-                print!("\rSensor detected floor: {}", floor);
-                stdout.flush().unwrap();
                 floor_indicator_tx.send(floor).unwrap();
                 let is_stopped = state != State::Moving;
                 elevator_data_tx.send((floor, direction, is_stopped)).unwrap();
