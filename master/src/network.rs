@@ -6,7 +6,7 @@ use std::time::{Instant, Duration};
 use crossbeam_channel::{unbounded, select};
 use network_rust::udpnet;
 
-use crate::config::{self, UPDATE_PORT, COMMAND_PORT, HALL_DOWN, HALL_UP};
+use crate::config::{self, UPDATE_PORT, COMMAND_PORT};
 use crate::hall_request_assigner::*;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -92,14 +92,6 @@ pub fn main() {
                     hall_requests[order.floor as usize][order.call as usize] = false;
                 }
 
-                // clear served order
-                let dirn = if direction == "up" { HALL_UP } else { HALL_DOWN };
-                let other_dirn = if direction == "up" { HALL_DOWN } else { HALL_UP };
-                hall_requests[floor as usize][dirn as usize] = false;
-                if !further_requests_in_direction(hall_requests, floor, dirn) {
-                    hall_requests[floor as usize][other_dirn as usize] = false;
-                }
-
                 // assign hall orders
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
@@ -123,20 +115,4 @@ pub fn main() {
             }
         }
     }
-}
-
-fn further_requests_in_direction(
-    hall_requests: [[bool; 2]; config::ELEV_NUM_FLOORS as usize],
-    floor: u8,
-    dirn: u8,
-) -> bool {
-    let range = if dirn == config::HALL_UP { (floor+1)..config::ELEV_NUM_FLOORS } else { 0..floor };
-    for f in range {
-        for btn in config::HALL_UP..=config::HALL_DOWN {
-            if hall_requests[f as usize][btn as usize] {
-                return true
-            }
-        }
-    }
-    false
 }
