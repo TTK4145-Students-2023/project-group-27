@@ -8,7 +8,7 @@ use crossterm::{cursor, terminal, Result, ExecutableCommand};
 use crate::config;
 use crate::network::ElevatorData;
 
-const STATUS_SIZE: u16 = 21;
+const STATUS_SIZE: u16 = 20;
 
 pub fn main(
     hall_requests_rx: Receiver<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
@@ -18,8 +18,6 @@ pub fn main(
 
     let mut hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
-
-    for _ in 0..STATUS_SIZE { writeln!(stdout, "")?; }
 
     loop {
         select! {
@@ -40,7 +38,7 @@ fn printstatus(
     hall_requests: [[bool; 2]; config::ELEV_NUM_FLOORS as usize],
     connected_elevators: HashMap<String, ElevatorData>,
 ) -> Result<()> {
-    stdout.execute(cursor::MoveUp(STATUS_SIZE + connected_elevators.len() as u16))?;
+    
     stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown))?;
 
     writeln!(stdout, "+--------------------------------------+")?;
@@ -53,20 +51,21 @@ fn printstatus(
     }
     writeln!(stdout, "+------------+------------+------------+\n\n")?;
 
-    writeln!(stdout, "+-----------------------------------------------------------------+")?;
-    writeln!(stdout, "| CONNECTED ELEVATORS                                             |")?;
-    writeln!(stdout, "+-------------+------------+------------+------------+------------+")?;
-    writeln!(stdout, "| {0:<11} | {1:<10} | {2:<10} | {3:<10} | {4:<10} |", "ID", "LAST SEEN", "STATE", "FLOOR", "DIRECTION")?;
-    writeln!(stdout, "+-------------+------------+------------+------------+------------+")?;
-    for (id, elev) in connected_elevators {
-        writeln!(stdout, "| {0:<11} | {1:>8}ms | {2:<10} | {3:<10} | {4:<10} |", 
+    writeln!(stdout, "+---------------------------------------------------------------------+")?;
+    writeln!(stdout, "| CONNECTED ELEVATORS                                                 |")?;
+    writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
+    writeln!(stdout, "| {0:<15} | {1:<10} | {2:<10} | {3:<10} | {4:<10} |", "ID", "LAST SEEN", "STATE", "FLOOR", "DIRECTION")?;
+    writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
+    for (id, elev) in &connected_elevators {
+        writeln!(stdout, "| {0:<15} | {1:>8}ms | {2:<10} | {3:<10} | {4:<10} |", 
         id, 
         Instant::now().duration_since(elev.last_seen).as_millis(), 
         elev.state.behaviour, 
         elev.state.floor, 
         elev.state.direction)?;
-        writeln!(stdout, "+-------------+------------+------------+------------+------------+")?;
+        writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
     }
 
+    stdout.execute(cursor::MoveUp(STATUS_SIZE + 2 * connected_elevators.len() as u16))?;
     Ok(())
 }
