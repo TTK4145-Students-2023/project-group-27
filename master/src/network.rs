@@ -26,15 +26,6 @@ pub struct ElevatorMessage {
     pub served_hall_orders: Vec<HallOrder>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ElevatorState {
-    pub behaviour: String,
-    pub floor: u8,
-    pub direction: String,
-    pub cab_requests: [bool; config::ELEV_NUM_FLOORS as usize]
-}
-
 #[derive(Clone)]
 pub struct ElevatorData {
     pub state: HRAElevState,
@@ -64,6 +55,7 @@ pub fn main(
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
     let mut hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
+    
     loop {
         select! {
             recv(elevator_message_rx) -> msg => {
