@@ -64,7 +64,7 @@ fn printstatus(
         _ => "none",
     };
     writeln!(stdout, "| {0:<10} | {1:<10} |", "DIRECTION", dirn)?;
-    writeln!(stdout, "+-------------------------+")?;
+    writeln!(stdout, "+------------+------------+")?;
 
     Ok(())
 }

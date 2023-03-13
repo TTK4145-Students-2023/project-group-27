@@ -3,7 +3,7 @@ use std::process;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 
-use crossbeam_channel::{unbounded, select};
+use crossbeam_channel::{unbounded, select, Sender};
 use network_rust::udpnet;
 
 use crate::config::{self, UPDATE_PORT, COMMAND_PORT};
@@ -36,19 +36,22 @@ pub struct ElevatorState {
 }
 
 #[derive(Clone)]
-struct ElevatorData {
-    state: HRAElevState,
-    last_seen: Instant
+pub struct ElevatorData {
+    pub state: HRAElevState,
+    pub last_seen: Instant
 }
 
-pub fn main() {
+pub fn main(
+    hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
+) {
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     spawn(move || {
         if udpnet::bcast::rx(UPDATE_PORT, elevator_message_tx).is_err() {
             process::exit(1);
         }
     });
-
+    
     let (command_tx, command_rx) = unbounded::<HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]>>();
     spawn(move || {
         if udpnet::bcast::tx(COMMAND_PORT, command_rx).is_err() {
@@ -104,6 +107,8 @@ pub fn main() {
 
                 // broadcast assigned orders
                 command_tx.send(output).unwrap();
+
+                hall_requests_tx.send(hall_requests).unwrap();
             },
             default(Duration::from_secs_f64(UPDATE_FREQ)) => {
                 // remove lost elevators
@@ -112,6 +117,7 @@ pub fn main() {
                         connected_elevators.remove(id);
                     }
                 }
+                connected_elevators_tx.send(connected_elevators.clone()).unwrap();
             }
         }
     }
