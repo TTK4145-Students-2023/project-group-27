@@ -16,7 +16,8 @@ fn main() -> std::io::Result<()> {
     let (doors_closing_tx, doors_closing_rx) = unbounded();
     let (should_stop_tx, should_stop_rx) = unbounded();
     let (next_direction_tx, next_direction_rx) = unbounded();
-    let (hall_requests_tx, hall_requests_rx) = unbounded();
+    let (our_hall_requests_tx, our_hall_requests_rx) = unbounded();
+    let (all_hall_requests_tx, all_hall_requests_rx) = unbounded();
     let (cleared_request_tx, cleared_request_rx) = unbounded();
     let (cab_requests_tx, cab_requests_rx) = unbounded();
     let (elevator_data_tx, elevator_data_rx) = unbounded();
@@ -47,7 +48,8 @@ fn main() -> std::io::Result<()> {
     // INITIALIZE REQUESTS MODULE
     thread::spawn(move || requests::main(
         cab_button_rx, 
-        hall_requests_rx,
+        our_hall_requests_rx,
+        all_hall_requests_rx,
         cleared_request_tx,
         button_light_tx,
         should_stop_tx,
@@ -75,7 +77,8 @@ fn main() -> std::io::Result<()> {
         let elevator_state_rx = elevator_state_rx.clone();
         thread::spawn(move || network::main(
             hall_button_rx, 
-            hall_requests_tx, 
+            our_hall_requests_tx, 
+            all_hall_requests_tx,
             cleared_request_rx,
             elevator_state_rx,
             cab_requests_rx,

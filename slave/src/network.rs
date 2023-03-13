@@ -38,7 +38,8 @@ fn get_id() -> String {
 
 pub fn main(
     hall_button_rx: Receiver<poll::CallButton>,
-    hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    our_hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    all_hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
     cleared_request_rx: Receiver<poll::CallButton>, 
     elevator_state_rx: Receiver<(String,u8,u8)>,
     cab_requests_rx: Receiver<[bool; config::ELEV_NUM_FLOORS as usize]>,
@@ -61,9 +62,12 @@ pub fn main(
     
     let id = get_id();
     
+    // FSM states
     let mut behaviour = String::from("idle");
     let mut floor = 0;
     let mut direction = String::from("up");
+    
+    // request states
     let mut cab_requests = [false; config::ELEV_NUM_FLOORS as usize];
     let mut new_hall_orders: Vec<HallOrder> = Vec::new();
     let mut served_hall_orders: Vec<HallOrder> = Vec::new();
@@ -71,9 +75,24 @@ pub fn main(
     loop {
         select! {
             recv(command_rx) -> msg => {
-                // collect hall requests to be served from this elevator
+                // decode command message from master
                 let command = msg.unwrap(); 
-                let hall_requests = match command.get(&id) {
+
+                // collect all hall orders and send to request module
+                let mut all_hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
+                for (_, requests) in command.clone() {
+                    for floor in 0..config::ELEV_NUM_FLOORS {
+                        for btn in elev::HALL_UP..=elev::HALL_DOWN {
+                            if requests[floor as usize][btn as usize] {
+                                all_hall_requests[floor as usize][btn as usize] = true;
+                            }
+                        }
+                    }
+                }
+                all_hall_requests_tx.send(all_hall_requests).unwrap();
+                
+                // collect hall requests to be served from this elevator
+                let our_hall_requests = match command.get(&id) {
                     Some(hr) => hr,
                     None => continue, // master does not yet know about this elevator -> discard message
                 };
@@ -81,7 +100,7 @@ pub fn main(
                 for index in (0..new_hall_orders.len()).rev() {
                     let floor = new_hall_orders[index].floor;
                     let call = new_hall_orders[index].call;
-                    if hall_requests[floor as usize][call as usize] {
+                    if our_hall_requests[floor as usize][call as usize] {
                         new_hall_orders.remove(index);
                     }
                 }
@@ -89,12 +108,12 @@ pub fn main(
                 for index in (0..served_hall_orders.len()).rev() {
                     let floor = served_hall_orders[index].floor;
                     let call = served_hall_orders[index].call;
-                    if !hall_requests[floor as usize][call as usize] {
+                    if !our_hall_requests[floor as usize][call as usize] {
                         served_hall_orders.remove(index);
                     }
                 }
                 // pass hall requests to requests module
-                hall_requests_tx.send(*hall_requests).unwrap();
+                our_hall_requests_tx.send(*our_hall_requests).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue

@@ -7,7 +7,8 @@ use crate::config::{ELEV_NUM_FLOORS, ELEV_NUM_BUTTONS};
 
 pub fn main(
     cab_button_rx: Receiver<poll::CallButton>, 
-    hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
+    our_hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
+    all_hall_requests_rx: Receiver<[[bool; 2]; ELEV_NUM_FLOORS as usize]>, 
     cleared_request_tx: Sender<poll::CallButton>, 
     button_light_tx: Sender<(u8,u8,bool)>,
     should_stop_tx: Sender<bool>,
@@ -41,12 +42,19 @@ pub fn main(
                 cab_requests_tx.send(cab_requests).unwrap();
                 //TODO: Clear cab order which is assigned on same floor as current_floor 
             },
-            recv(hall_requests_rx) -> msg => {
-                // collect this elevator's hall requests from network module
+            recv(our_hall_requests_rx) -> msg => {
+                // collect this elevator's hall requests from network module as store locally
                 for floor in 0..ELEV_NUM_FLOORS {
                     for btn in elev::HALL_UP..=elev::HALL_DOWN {
                         orders[floor as usize][btn as usize] = msg.unwrap()[floor as usize][btn as usize];
-                        button_light_tx.send((floor, btn, orders[floor as usize][btn as usize])).unwrap();
+                    }
+                }
+            },
+            recv(all_hall_requests_rx) -> msg => {
+                // collect all hall requests from network module and set button lights
+                for floor in 0..ELEV_NUM_FLOORS {
+                    for btn in elev::HALL_UP..=elev::HALL_DOWN {
+                        button_light_tx.send((floor, btn, msg.unwrap()[floor as usize][btn as usize])).unwrap();
                     }
                 }
             },
