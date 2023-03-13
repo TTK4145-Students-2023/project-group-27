@@ -6,6 +6,8 @@ use driver_rust::elevio::elev;
 
 use crate::config;
 
+const STATUS_SIZE: u16 = 24;
+
 pub fn main(
     orders_rx: Receiver<[[bool; config::ELEV_NUM_BUTTONS as usize]; config::ELEV_NUM_FLOORS as usize]>,
     elevator_state_rx: Receiver<(String, u8, u8)>,
@@ -14,6 +16,8 @@ pub fn main(
 
     let mut state = (String::from("idle"), 0, 0);
     let mut orders = [[false; config::ELEV_NUM_BUTTONS as usize]; config::ELEV_NUM_FLOORS as usize];
+
+    for _ in 0..STATUS_SIZE { writeln!(stdout, "")?; }
 
     loop {
         select! {
@@ -31,11 +35,9 @@ pub fn main(
 
 fn printstatus(
     stdout: &mut Stdout,
-    orders: [[bool; 3]; 4],
+    orders: [[bool; config::ELEV_NUM_BUTTONS as usize]; config::ELEV_NUM_FLOORS as usize],
     state: (String, u8, u8),
 ) -> Result<()> {
-    const STATUS_SIZE: u16 = 24;
-    
     stdout.execute(cursor::MoveUp(STATUS_SIZE))?;
     stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown))?;
 
