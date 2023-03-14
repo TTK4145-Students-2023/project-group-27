@@ -33,7 +33,7 @@ fn get_id() -> String {
         .local_addr()
         .unwrap()
         .ip();
-    format!("{}",local_ip)
+    format!("{}#{}",local_ip, process::id())
 }
 
 pub fn main(
@@ -100,7 +100,7 @@ pub fn main(
                 for index in (0..new_hall_orders.len()).rev() {
                     let floor = new_hall_orders[index].floor;
                     let call = new_hall_orders[index].call;
-                    if our_hall_requests[floor as usize][call as usize] {
+                    if all_hall_requests[floor as usize][call as usize] {
                         new_hall_orders.remove(index);
                     }
                 }
@@ -108,7 +108,7 @@ pub fn main(
                 for index in (0..served_hall_orders.len()).rev() {
                     let floor = served_hall_orders[index].floor;
                     let call = served_hall_orders[index].call;
-                    if !our_hall_requests[floor as usize][call as usize] {
+                    if !all_hall_requests[floor as usize][call as usize] {
                         served_hall_orders.remove(index);
                     }
                 }

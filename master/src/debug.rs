@@ -51,19 +51,19 @@ fn printstatus(
     }
     writeln!(stdout, "+------------+------------+------------+\n\n")?;
 
-    writeln!(stdout, "+---------------------------------------------------------------------+")?;
-    writeln!(stdout, "| CONNECTED ELEVATORS                                                 |")?;
-    writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
-    writeln!(stdout, "| {0:<15} | {1:<10} | {2:<10} | {3:<10} | {4:<10} |", "ID", "LAST SEEN", "STATE", "FLOOR", "DIRECTION")?;
-    writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
+    writeln!(stdout, "+---------------------------------------------------------------------------+")?;
+    writeln!(stdout, "| CONNECTED ELEVATORS                                                       |")?;
+    writeln!(stdout, "+-----------------------+------------+------------+------------+------------+")?;
+    writeln!(stdout, "| {0:<21} | {1:<10} | {2:<10} | {3:<10} | {4:<10} |", "ID", "LAST SEEN", "STATE", "FLOOR", "DIRECTION")?;
+    writeln!(stdout, "+-----------------------+------------+------------+------------+------------+")?;
     for (id, elev) in &connected_elevators {
-        writeln!(stdout, "| {0:<15} | {1:>8}ms | {2:<10} | {3:<10} | {4:<10} |", 
+        writeln!(stdout, "| {0:<21} | {1:>8}ms | {2:<10} | {3:<10} | {4:<10} |", 
         id, 
         Instant::now().duration_since(elev.last_seen).as_millis(), 
         elev.state.behaviour, 
         elev.state.floor, 
         elev.state.direction)?;
-        writeln!(stdout, "+-----------------+------------+------------+------------+------------+")?;
+        writeln!(stdout, "+-----------------------+------------+------------+------------+------------+")?;
     }
 
     stdout.execute(cursor::MoveUp(STATUS_SIZE + 2 * connected_elevators.len() as u16))?;

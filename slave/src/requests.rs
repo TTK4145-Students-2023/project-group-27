@@ -43,7 +43,7 @@ pub fn main(
                 //TODO: Clear cab order which is assigned on same floor as current_floor 
             },
             recv(our_hall_requests_rx) -> msg => {
-                // collect this elevator's hall requests from network module as store locally
+                // collect this elevator's hall requests from network module and store locally
                 for floor in 0..ELEV_NUM_FLOORS {
                     for btn in elev::HALL_UP..=elev::HALL_DOWN {
                         orders[floor as usize][btn as usize] = msg.unwrap()[floor as usize][btn as usize];

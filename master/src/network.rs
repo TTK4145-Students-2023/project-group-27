@@ -6,7 +6,7 @@ use std::time::{Instant, Duration};
 use crossbeam_channel::{unbounded, select, Sender};
 use network_rust::udpnet;
 
-use crate::config::{self, UPDATE_PORT, COMMAND_PORT};
+use crate::config::{self, UPDATE_PORTS, COMMAND_PORTS};
 use crate::hall_request_assigner::*;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -36,20 +36,26 @@ pub fn main(
     hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
     connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
 ) {
-    let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
-    spawn(move || {
-        if udpnet::bcast::rx(UPDATE_PORT, elevator_message_tx).is_err() {
-            process::exit(1);
-        }
-    });
-    
     let (command_tx, command_rx) = unbounded::<HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]>>();
-    spawn(move || {
-        if udpnet::bcast::tx(COMMAND_PORT, command_rx).is_err() {
-            process::exit(1);
-        }
-    });
-    
+    for port in COMMAND_PORTS {
+        let command_rx = command_rx.clone();
+        spawn(move || {
+            if udpnet::bcast::tx(port, command_rx).is_err() {
+                process::exit(1);
+            }
+        });
+    }
+
+    let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
+    for port in UPDATE_PORTS {
+        let elevator_message_tx = elevator_message_tx.clone();
+        spawn(move || {
+            if udpnet::bcast::rx(port, elevator_message_tx).is_err() {
+                process::exit(1);
+            }
+        });
+    }
+
     const UPDATE_FREQ: f64 = 0.1;
     const TIMEOUT: f64 = 5.0;
 
@@ -71,7 +77,7 @@ pub fn main(
                     state: HRAElevState { 
                         behaviour: behaviour, 
                         floor: floor, 
-                        direction: direction.clone(), 
+                        direction: direction, 
                         cab_requests: cab_requests
                     },
                     last_seen: Instant::now()
