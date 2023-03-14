@@ -3,8 +3,6 @@ use std::time::Duration;
 use crossbeam_channel::{select, Receiver, Sender};
 use driver_rust::elevio::elev::{self, DIRN_DOWN};
 
-use crate::config;
-
 #[derive(PartialEq, Debug)]
 enum State {
     Idle,
@@ -25,7 +23,7 @@ pub fn main(
 ) {
     const UPDATE_FREQ: f64 = 0.25;
 
-    let mut floor: u8 = config::ELEV_NUM_FLOORS;
+    let mut floor: u8 = 0;
     let mut direction: u8 = DIRN_DOWN;
     let mut state: State = State::Moving;
 

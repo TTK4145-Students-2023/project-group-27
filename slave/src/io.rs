@@ -6,7 +6,10 @@ use driver_rust::elevio::{poll, elev};
 
 use crate::config;
 
-pub fn init() -> (
+pub fn init(
+    server_config: config::ServerConfig,
+    elevator_settings: config::ElevatorSettings,
+) -> (
     Receiver<poll::CallButton>, 
     Receiver<poll::CallButton>, 
     Receiver<u8>,
@@ -17,7 +20,8 @@ pub fn init() -> (
     Sender<bool>,
     Sender<u8>,
 ) {
-    let elevator = elev::Elevator::init(config::ELEV_ADDR, config::ELEV_NUM_FLOORS).unwrap();
+    let serveraddr = "localhost:".to_owned() + &server_config.port.to_string();
+    let elevator = elev::Elevator::init(serveraddr.as_str(), elevator_settings.num_floors).unwrap();
 
     let poll_period = Duration::from_millis(25);
     let (cab_button_tx, cab_button_rx) = unbounded();

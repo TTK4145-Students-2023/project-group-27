@@ -11,6 +11,9 @@ pub mod network;
 pub mod debug;
 
 fn main() -> std::io::Result<()> {
+    // READ CONFIGURATION
+    let config = config::get_config();
+
     // INITIALIZE CHANNELS
     let (doors_activate_tx, doors_activate_rx) = unbounded();
     let (doors_closing_tx, doors_closing_rx) = unbounded();
@@ -35,7 +38,10 @@ fn main() -> std::io::Result<()> {
         motor_direction_tx,
         door_light_tx,
         floor_indicator_tx,
-    ) = io::init();
+    ) = io::init(
+        config.server,
+        config.settings.clone(),
+    );
 
     // INITIALIZE DOORS MODULE
     thread::spawn(move || doors::main(
@@ -46,18 +52,22 @@ fn main() -> std::io::Result<()> {
     ));
 
     // INITIALIZE REQUESTS MODULE
-    thread::spawn(move || requests::main(
-        cab_button_rx, 
-        our_hall_requests_rx,
-        all_hall_requests_rx,
-        cleared_request_tx,
-        button_light_tx,
-        should_stop_tx,
-        next_direction_tx,
-        cab_requests_tx,
-        elevator_data_rx,
-        orders_tx,
-    ));
+    {
+        let elevator_settings = config.settings.clone();
+        thread::spawn(move || requests::main(
+            elevator_settings,
+            cab_button_rx, 
+            our_hall_requests_rx,
+            all_hall_requests_rx,
+            cleared_request_tx,
+            button_light_tx,
+            should_stop_tx,
+            next_direction_tx,
+            cab_requests_tx,
+            elevator_data_rx,
+            orders_tx,
+        ));
+    }
 
     // INITIALIZE FSM MODULE
     thread::spawn(move || fsm::main(
@@ -75,7 +85,10 @@ fn main() -> std::io::Result<()> {
     // INITIALIZE NETWORK MODULE
     {
         let elevator_state_rx = elevator_state_rx.clone();
+        let elevator_settings = config.settings.clone();
         thread::spawn(move || network::main(
+            elevator_settings,
+            config.network,
             hall_button_rx, 
             our_hall_requests_tx, 
             all_hall_requests_tx,
@@ -86,10 +99,14 @@ fn main() -> std::io::Result<()> {
     }
 
     // INITIALIZE DEBUG MODULE
-    thread::spawn(move || debug::main(
-        orders_rx,
-        elevator_state_rx,
-    ));
+    {
+        let elevator_settings = config.settings.clone();
+        thread::spawn(move || debug::main(
+            elevator_settings,
+            orders_rx,
+            elevator_state_rx,
+        ));
+    }
 
     loop {
         select! {

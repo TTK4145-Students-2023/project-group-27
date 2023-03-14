@@ -8,7 +8,7 @@ use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use network_rust::udpnet;
 use driver_rust::elevio::{elev, poll};
 
-use crate::config::{self, UPDATE_PORT, COMMAND_PORT};
+use crate::config::{ElevatorSettings, NetworkConfig};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct HallOrder {
@@ -22,7 +22,7 @@ pub struct ElevatorMessage {
     pub behaviour: String,
     pub floor: u8,
     pub direction: String,
-    pub cab_requests: [bool; config::ELEV_NUM_FLOORS as usize],
+    pub cab_requests: Vec<bool>,
     pub new_hall_orders: Vec<HallOrder>,
     pub served_hall_orders: Vec<HallOrder>,
 }
@@ -37,25 +37,27 @@ fn get_id() -> String {
 }
 
 pub fn main(
+    elevator_settings: ElevatorSettings,
+    network_config: NetworkConfig,
     hall_button_rx: Receiver<poll::CallButton>,
-    our_hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
-    all_hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
+    all_hall_requests_tx: Sender<Vec<[bool; 2]>>,
     cleared_request_rx: Receiver<poll::CallButton>, 
     elevator_state_rx: Receiver<(String,u8,u8)>,
-    cab_requests_rx: Receiver<[bool; config::ELEV_NUM_FLOORS as usize]>,
+    cab_requests_rx: Receiver<Vec<bool>>,
 ) {
     const SEND_UPDATE_FREQUENCY: f64 = 0.1;
     
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     spawn(move || {
-        if udpnet::bcast::tx(UPDATE_PORT, elevator_message_rx).is_err() {
+        if udpnet::bcast::tx(network_config.update_port, elevator_message_rx).is_err() {
             process::exit(1);
         }
     });
     
-    let (command_tx, command_rx) = unbounded::<HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]>>();
+    let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<[bool; 2]>>>();
     spawn(move || {
-        if udpnet::bcast::rx(COMMAND_PORT, command_tx).is_err() {
+        if udpnet::bcast::rx(network_config.command_port, command_tx).is_err() {
             process::exit(1);
         }
     });
@@ -68,7 +70,7 @@ pub fn main(
     let mut direction = String::from("up");
     
     // request states
-    let mut cab_requests = [false; config::ELEV_NUM_FLOORS as usize];
+    let mut cab_requests = vec![false; elevator_settings.num_floors as usize];
     let mut new_hall_orders: Vec<HallOrder> = Vec::new();
     let mut served_hall_orders: Vec<HallOrder> = Vec::new();
     
@@ -79,9 +81,9 @@ pub fn main(
                 let command = msg.unwrap(); 
 
                 // collect all hall orders and send to request module
-                let mut all_hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
+                let mut all_hall_requests = vec![[false; 2]; elevator_settings.num_floors as usize];
                 for (_, requests) in command.clone() {
-                    for floor in 0..config::ELEV_NUM_FLOORS {
+                    for floor in 0..elevator_settings.num_floors {
                         for btn in elev::HALL_UP..=elev::HALL_DOWN {
                             if requests[floor as usize][btn as usize] {
                                 all_hall_requests[floor as usize][btn as usize] = true;
@@ -89,7 +91,7 @@ pub fn main(
                         }
                     }
                 }
-                all_hall_requests_tx.send(all_hall_requests).unwrap();
+                all_hall_requests_tx.send(all_hall_requests.clone()).unwrap();
                 
                 // collect hall requests to be served from this elevator
                 let our_hall_requests = match command.get(&id) {
@@ -113,7 +115,7 @@ pub fn main(
                     }
                 }
                 // pass hall requests to requests module
-                our_hall_requests_tx.send(*our_hall_requests).unwrap();
+                our_hall_requests_tx.send(our_hall_requests.clone()).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue
@@ -150,7 +152,7 @@ pub fn main(
                     behaviour: behaviour.clone(), 
                     floor: floor, 
                     direction: direction.clone(), 
-                    cab_requests: cab_requests, 
+                    cab_requests: cab_requests.clone(), 
                     new_hall_orders: new_hall_orders.clone(),
                     served_hall_orders: served_hall_orders.clone(),
                 }).unwrap();
