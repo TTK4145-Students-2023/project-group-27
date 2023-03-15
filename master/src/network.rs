@@ -8,7 +8,7 @@ use std::process;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 
-use crossbeam_channel::{unbounded, select, Sender};
+use crossbeam_channel::{unbounded, select, Sender, tick};
 use network_rust::udpnet;
 
 use crate::config::{self, UPDATE_PORTS, COMMAND_PORTS};
@@ -61,7 +61,9 @@ pub fn main(
         });
     }
 
-    const UPDATE_FREQ: f64 = 0.1;
+    let update_freq = Duration::from_secs_f64(0.1);
+    let timer = tick(update_freq);
+
     const TIMEOUT: f64 = 5.0;
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
@@ -109,14 +111,15 @@ pub fn main(
                 };
 
                 // broadcast assigned orders
+
                 command_tx.send(output).unwrap();
 
                 hall_requests_tx.send(hall_requests).unwrap();
             },
-            default(Duration::from_secs_f64(UPDATE_FREQ)) => {
+            recv(timer) -> _ => {
                 // remove lost elevators
                 for id in connected_elevators.clone().keys() {
-                    if Instant::now().duration_since(connected_elevators[id].last_seen) > Duration::from_secs_f64(TIMEOUT) {
+                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(TIMEOUT) {
                         connected_elevators.remove(id);
                     }
                 }

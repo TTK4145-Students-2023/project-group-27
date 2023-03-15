@@ -6,7 +6,7 @@
 use std::time::Duration;
 use std::vec;
 
-use crossbeam_channel::{Sender, Receiver, select};
+use crossbeam_channel::{Sender, Receiver, select, tick};
 use driver_rust::elevio::{poll, elev};
 
 use crate::config::ElevatorSettings;
@@ -15,16 +15,16 @@ pub fn main(
     elevator_settings: ElevatorSettings,
     cab_button_rx: Receiver<poll::CallButton>, 
     our_hall_requests_rx: Receiver<Vec<[bool; 2]>>, 
-    all_hall_requests_rx: Receiver<Vec<[bool; 2]>>, 
+    all_hall_requests_rx: Receiver<Vec<[bool; 2]>>,
+    elevator_data_rx: Receiver<(u8,u8,bool)>, 
     cleared_request_tx: Sender<poll::CallButton>, 
     button_light_tx: Sender<(u8,u8,bool)>,
     should_stop_tx: Sender<bool>,
     next_direction_tx: Sender<u8>,
     cab_requests_tx: Sender<Vec<bool>>,
-    elevator_data_rx: Receiver<(u8,u8,bool)>,
     orders_tx: Sender<Vec<Vec<bool>>>,
 ) {
-    const UPDATE_FREQ: f64 = 0.1;
+    let timer = tick(Duration::from_secs_f64(0.1));
     let n_buttons = elevator_settings.num_buttons;
     let n_floors = elevator_settings.num_floors;
     
@@ -95,7 +95,7 @@ pub fn main(
                 next_direction_tx.send(next_direction).unwrap();
                 //TODO: Clear cab order which is assigned on same floor as current_floor
             },
-            default(Duration::from_secs_f64(UPDATE_FREQ)) => {
+            recv(timer) -> _ => {
                 orders_tx.send(orders.clone()).unwrap();
             },
         }

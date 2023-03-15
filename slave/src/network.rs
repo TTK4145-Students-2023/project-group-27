@@ -8,9 +8,9 @@ use std::thread::spawn;
 use std::net;
 use std::process;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Instant, Duration};
 
-use crossbeam_channel::{Sender, Receiver, unbounded, select};
+use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
 use network_rust::udpnet;
 use driver_rust::elevio::{elev, poll};
 
@@ -33,6 +33,73 @@ pub struct ElevatorMessage {
     pub served_hall_orders: Vec<HallOrder>,
 }
 
+#[derive(Debug, Clone)]
+pub struct HallOrderBuffer {
+    new_orders: Vec<HallOrder>,
+    served_orders: Vec<HallOrder>,
+    new_order_timers: Vec<Instant>,
+    served_order_timers: Vec<Instant>,
+    timeout: u64,
+}
+
+impl HallOrderBuffer {
+    pub fn new(timeout: u64) -> Self {
+        HallOrderBuffer { 
+            new_orders: Vec::new(), 
+            served_orders: Vec::new(),
+            new_order_timers: Vec::new(),
+            served_order_timers: Vec::new(),
+            timeout: timeout,
+        }
+    }
+    pub fn get_new_orders(&self) -> Vec<HallOrder> {
+        self.new_orders.clone()
+    }
+    pub fn get_served_orders(&self) -> Vec<HallOrder> {
+        self.served_orders.clone()
+    }
+    pub fn insert_new_order(&mut self, order: HallOrder) {
+        self.new_orders.push(order);
+        self.new_order_timers.push(Instant::now());
+    }
+    pub fn insert_served_order(&mut self, order: HallOrder) {
+        self.served_orders.push(order);
+        self.served_order_timers.push(Instant::now());
+    }
+    pub fn remove_confirmed_orders(&mut self, all_hall_requests: &Vec<[bool; 2]>) {
+        for index in (0..self.new_orders.len()).rev() {
+            let floor = self.new_orders[index].floor;
+            let call = self.new_orders[index].call;
+            if all_hall_requests[floor as usize][call as usize] {
+                self.new_orders.remove(index);
+                self.new_order_timers.remove(index);
+            }
+        }
+        for index in (0..self.served_orders.len()).rev() {
+            let floor = self.served_orders[index].floor;
+            let call = self.served_orders[index].call;
+            if !all_hall_requests[floor as usize][call as usize] {
+                self.served_orders.remove(index);
+                self.served_order_timers.remove(index);
+            }
+        }
+    }
+    pub fn remove_timed_out_orders(&mut self) {
+        for index in (0..self.new_orders.len()).rev() {
+            if self.new_order_timers[index].elapsed() > Duration::from_secs(self.timeout) {
+                self.new_orders.remove(index);
+                self.new_order_timers.remove(index);
+            }
+        }
+        for index in (0..self.served_orders.len()).rev() {
+            if self.served_order_timers[index].elapsed() > Duration::from_secs(self.timeout) {
+                self.served_orders.remove(index);
+                self.served_order_timers.remove(index);
+            }
+        }
+    }
+}
+
 fn get_id() -> String {
     let local_ip = net::TcpStream::connect("8.8.8.8:53")
         .unwrap()
@@ -46,14 +113,16 @@ pub fn main(
     elevator_settings: ElevatorSettings,
     network_config: NetworkConfig,
     hall_button_rx: Receiver<poll::CallButton>,
-    our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
-    all_hall_requests_tx: Sender<Vec<[bool; 2]>>,
     cleared_request_rx: Receiver<poll::CallButton>, 
     elevator_state_rx: Receiver<(String,u8,u8)>,
     cab_requests_rx: Receiver<Vec<bool>>,
+    our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
+    all_hall_requests_tx: Sender<Vec<[bool; 2]>>
 ) {
-    const SEND_UPDATE_FREQUENCY: f64 = 0.1;
-    
+    let update_master = tick(Duration::from_secs_f64(0.1));
+
+    const TIMEOUT: u64 = 5;
+
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     spawn(move || {
         if udpnet::bcast::tx(network_config.update_port, elevator_message_rx).is_err() {
@@ -77,15 +146,13 @@ pub fn main(
     
     // request states
     let mut cab_requests = vec![false; elevator_settings.num_floors as usize];
-    let mut new_hall_orders: Vec<HallOrder> = Vec::new();
-    let mut served_hall_orders: Vec<HallOrder> = Vec::new();
+    let mut hall_order_buffer = HallOrderBuffer::new(TIMEOUT);
     
     loop {
         select! {
             recv(command_rx) -> msg => {
                 // decode command message from master
-                let command = msg.unwrap(); 
-
+                let command = msg.unwrap();
                 // collect all hall orders and send to request module
                 let mut all_hall_requests = vec![[false; 2]; elevator_settings.num_floors as usize];
                 for (_, requests) in command.clone() {
@@ -104,35 +171,22 @@ pub fn main(
                     Some(hr) => hr,
                     None => continue, // master does not yet know about this elevator -> discard message
                 };
-                // remove unconfirmed new hall orders from queue
-                for index in (0..new_hall_orders.len()).rev() {
-                    let floor = new_hall_orders[index].floor;
-                    let call = new_hall_orders[index].call;
-                    if all_hall_requests[floor as usize][call as usize] {
-                        new_hall_orders.remove(index);
-                    }
-                }
-                // remove unconfirmed served hall orders from queue
-                for index in (0..served_hall_orders.len()).rev() {
-                    let floor = served_hall_orders[index].floor;
-                    let call = served_hall_orders[index].call;
-                    if !all_hall_requests[floor as usize][call as usize] {
-                        served_hall_orders.remove(index);
-                    }
-                }
+                
+                hall_order_buffer.remove_confirmed_orders(&all_hall_requests);
+
                 // pass hall requests to requests module
                 our_hall_requests_tx.send(our_hall_requests.clone()).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue
-                new_hall_orders.push(HallOrder {
+                hall_order_buffer.insert_new_order(HallOrder {
                     floor: hall_request.as_ref().unwrap().floor,
                     call: hall_request.unwrap().call,
                 });
             },
             recv(cleared_request_rx) -> cleared_request => {
                 // append served hall order to queue
-                served_hall_orders.push(HallOrder {
+                hall_order_buffer.insert_served_order(HallOrder {
                     floor: cleared_request.as_ref().unwrap().floor,
                     call: cleared_request.unwrap().call,
                 });
@@ -151,7 +205,9 @@ pub fn main(
                 // collect this elevator's cab orders
                 cab_requests = msg.unwrap();
             },
-            default(Duration::from_secs_f64(SEND_UPDATE_FREQUENCY)) => {
+            recv(update_master) -> _ => {
+                // remove timed out orders
+                hall_order_buffer.remove_timed_out_orders();
                 // send state and collected orders to master
                 elevator_message_tx.send(ElevatorMessage { 
                     id: id.clone(), 
@@ -159,8 +215,8 @@ pub fn main(
                     floor: floor, 
                     direction: direction.clone(), 
                     cab_requests: cab_requests.clone(), 
-                    new_hall_orders: new_hall_orders.clone(),
-                    served_hall_orders: served_hall_orders.clone(),
+                    new_hall_orders: hall_order_buffer.get_new_orders(),
+                    served_hall_orders: hall_order_buffer.get_served_orders(),
                 }).unwrap();
             }
         }

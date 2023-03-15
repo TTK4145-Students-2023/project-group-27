@@ -43,15 +43,15 @@ fn main() -> std::io::Result<()> {
         config.settings.clone(),
     );
 
-    // INITIALIZE DOORS MODULE
+    // INITIALIZE THREAD FOR DOOR EVENTS
     thread::spawn(move || doors::main(
-        doors_closing_tx, 
-        doors_activate_rx, 
         obstruction_rx,
+        doors_activate_rx,
+        doors_closing_tx,
         door_light_tx
     ));
 
-    // INITIALIZE REQUESTS MODULE
+    // INITIALIZE THREAD FOR REQUEST EVENTS
     {
         let elevator_settings = config.settings.clone();
         thread::spawn(move || requests::main(
@@ -59,24 +59,24 @@ fn main() -> std::io::Result<()> {
             cab_button_rx, 
             our_hall_requests_rx,
             all_hall_requests_rx,
+            elevator_data_rx,
             cleared_request_tx,
             button_light_tx,
             should_stop_tx,
             next_direction_tx,
             cab_requests_tx,
-            elevator_data_rx,
             orders_tx,
         ));
     }
 
-    // INITIALIZE FSM MODULE
+    // INITIALIZE THREAD FOR STATE MACHINE
     thread::spawn(move || fsm::main(
-        should_stop_rx, 
-        doors_activate_tx, 
+        should_stop_rx,
         next_direction_rx,
         doors_closing_rx,
-        motor_direction_tx,
         floor_sensor_rx,
+        doors_activate_tx,
+        motor_direction_tx,
         floor_indicator_tx,
         elevator_state_tx,
         elevator_data_tx,
@@ -89,12 +89,12 @@ fn main() -> std::io::Result<()> {
         thread::spawn(move || network::main(
             elevator_settings,
             config.network,
-            hall_button_rx, 
-            our_hall_requests_tx, 
-            all_hall_requests_tx,
+            hall_button_rx,
             cleared_request_rx,
             elevator_state_rx,
             cab_requests_rx,
+            our_hall_requests_tx, 
+            all_hall_requests_tx
         ));
     }
 

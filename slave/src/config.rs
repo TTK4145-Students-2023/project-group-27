@@ -48,7 +48,7 @@ pub fn get_config() -> Config {
     };
     let config_file: ConfigFile = serde_json::from_str(&config_contents).unwrap();
     let (elevnum, serverport) = parse_env_args(config_file.server["port"]);
-
+    
     Config {
         network: NetworkConfig { 
             update_port: config_file.network["updatePorts"][elevnum as usize], 
