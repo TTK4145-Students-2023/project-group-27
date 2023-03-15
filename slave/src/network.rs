@@ -1,3 +1,9 @@
+/// ----- NETWORK MODULE -----
+/// This module is responsible for collecting requests from the request module,
+/// states from the FSM module, and sending these to the master node. It also
+/// parses messages from the master node and distributes this elevator's orders
+/// to the requests node.
+
 use std::thread::spawn;
 use std::net;
 use std::process;

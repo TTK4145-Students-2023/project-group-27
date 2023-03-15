@@ -1,3 +1,7 @@
+/// ----- CONFIG MODULE -----
+/// This stateless module reads command line arguments a "config.json" file
+/// and returns a Config struct containing setup specific parameters.
+
 use std::{fs, collections::HashMap};
 use std::env;
 

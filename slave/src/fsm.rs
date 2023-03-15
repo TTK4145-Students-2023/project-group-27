@@ -1,3 +1,8 @@
+/// ----- FSM MODULE -----
+/// This module is the finite state machine controlling the elevator.
+/// It receives events from other modules and switches states based
+/// on these.
+
 use std::time::Duration;
 
 use crossbeam_channel::{select, Receiver, Sender};

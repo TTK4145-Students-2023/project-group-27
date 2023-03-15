@@ -1,3 +1,8 @@
+/// ----- DEBUG MODULE -----
+/// This module receives information about the elevators currently
+/// connected to the master and the active hall requests, and does 
+/// a formatted print to the console.
+
 use std::io::{stdout, Stdout, Write};
 use std::collections::HashMap;
 use std::time::Instant;

@@ -1,3 +1,6 @@
+/// ----- CONFIG MODULE -----
+/// This stateless module keeps track of setup specific constants.
+
 pub const ELEV_NUM_FLOORS: u8 = 4;
 pub const ELEV_NUM_BUTTONS: u8 = 3;
 

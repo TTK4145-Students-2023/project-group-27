@@ -1,3 +1,7 @@
+/// ----- DEBUG MODULE -----
+/// This module receives information about the state and orders
+/// for this elevator and does a formatted print to the console.
+
 use std::io::{stdout, Stdout, Write};
 
 use crossbeam_channel::{Receiver, select};

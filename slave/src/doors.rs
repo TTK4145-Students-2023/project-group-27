@@ -1,3 +1,8 @@
+/// ----- DOORS MODULE -----
+/// This module is responsible for managing the door open light
+/// and keeping track of how long the door has been open for, to
+/// generate the doorClosing event for the state machine.
+
 use std::time::Duration;
 
 use crossbeam_channel::{select, Sender, Receiver};

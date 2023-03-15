@@ -1,3 +1,8 @@
+/// ----- NETWORK MODULE -----
+/// This module is responsible for collecting states and hall requests from the 
+/// slave nodes and uses the hall_request_assigner algorithm to distribute orders
+/// among the connected elevators and UDP broadcasts the result. 
+
 use std::thread::spawn;
 use std::process;
 use std::collections::HashMap;

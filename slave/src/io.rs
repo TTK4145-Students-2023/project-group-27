@@ -1,3 +1,8 @@
+/// ----- I/O MODULE -----
+/// This module is responsible for polling the sensors on the elevator,
+/// returning channels for other modules to listen to, as well as channels
+/// for sending commands to the elevator driver. 
+
 use std::time::Duration;
 use std::thread::spawn;
 

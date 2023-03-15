@@ -1,3 +1,8 @@
+/// ----- REQUESTS MODULE -----
+/// This module is responsible for keeping track of this elevators orders,
+/// calculating when the elevator should stop at a floor and what direction
+/// to choose next, and the sending this to the FSM module.
+
 use std::time::Duration;
 use std::vec;
 

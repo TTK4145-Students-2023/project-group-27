@@ -1,3 +1,9 @@
+/// ----- HALL REQUEST ASSIGNER -----
+/// This stateless module provides some abstraction when calling the
+/// hall_request_assigner algorithm provided. It takes elevator states and
+/// active hall requests as parameters and returns a data structure containing
+/// which elevators are to serve which orders.
+
 use std::collections::HashMap;
 use std::process::Command;
 
