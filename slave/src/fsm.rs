@@ -80,7 +80,7 @@ pub fn main(
             },
             recv(timer) -> _ => {
                 if state != State::Moving { // TODO: consider negating this logic
-                    elevator_data_tx.send((floor, direction, true)).unwrap();
+                    elevator_data_tx.send((floor, direction, true)).unwrap(); // This does nothing
                 }
             },
         }

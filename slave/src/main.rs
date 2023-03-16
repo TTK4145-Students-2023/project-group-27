@@ -9,6 +9,7 @@ pub mod requests;
 pub mod config;
 pub mod network;
 pub mod debug;
+pub mod prototype_fsm;
 
 fn main() -> std::io::Result<()> {
     // READ CONFIGURATION
