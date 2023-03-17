@@ -15,6 +15,8 @@ use network_rust::udpnet;
 use driver_rust::elevio::{elev, poll};
 
 use crate::config::{ElevatorSettings, NetworkConfig};
+use crate::prototype_fsm::ElevatorStatus;
+use crate::prototype_fsm::HallRequests;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct HallOrder {
@@ -114,10 +116,12 @@ pub fn main(
     network_config: NetworkConfig,
     hall_button_rx: Receiver<poll::CallButton>,
     cleared_request_rx: Receiver<poll::CallButton>, 
-    elevator_state_rx: Receiver<(String,u8,u8)>,
+    //elevator_state_rx: Receiver<(String,u8,u8)>,
+    elevator_status_rx: Receiver<ElevatorStatus>,
     cab_requests_rx: Receiver<Vec<bool>>,
-    our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
-    all_hall_requests_tx: Sender<Vec<[bool; 2]>>
+    // our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
+    // all_hall_requests_tx: Sender<Vec<[bool; 2]>>
+    hall_requests_tx: Sender<HallRequests>
 ) {
     let update_master = tick(Duration::from_secs_f64(0.1));
 
@@ -164,18 +168,35 @@ pub fn main(
                         }
                     }
                 }
-                all_hall_requests_tx.send(all_hall_requests.clone()).unwrap();
-                
-                // collect hall requests to be served from this elevator
+
+                let empty_buffer = vec![[false; 2]; elevator_settings.num_floors as usize];
+
                 let our_hall_requests = match command.get(&id) {
                     Some(hr) => hr,
-                    None => continue, // master does not yet know about this elevator -> discard message
+                    None => &empty_buffer, // master does not yet know about this elevator -> discard message
                 };
-                
+
+                let hall_requests = HallRequests {
+                    our_requests: our_hall_requests.clone(),
+                    all_requests: all_hall_requests.clone()
+                };
+
                 hall_order_buffer.remove_confirmed_orders(&all_hall_requests);
 
-                // pass hall requests to requests module
-                our_hall_requests_tx.send(our_hall_requests.clone()).unwrap();
+                hall_requests_tx.send(hall_requests.clone()).unwrap();
+
+                // all_hall_requests_tx.send(all_hall_requests.clone()).unwrap();
+                
+                // // collect hall requests to be served from this elevator
+                // let our_hall_requests = match command.get(&id) {
+                //     Some(hr) => hr,
+                //     None => continue, // master does not yet know about this elevator -> discard message
+                // };
+                
+                // hall_order_buffer.remove_confirmed_orders(&all_hall_requests);
+
+                // // pass hall requests to requests module
+                // our_hall_requests_tx.send(our_hall_requests.clone()).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue
@@ -191,11 +212,11 @@ pub fn main(
                     call: cleared_request.unwrap().call,
                 });
             },
-            recv(elevator_state_rx) -> state => {
+            recv(elevator_status_rx) -> status => {
                 // collect elevator state info from FSM
-                behaviour = state.clone().unwrap().0;
-                floor = state.clone().unwrap().1;
-                direction = match state.unwrap().2 {
+                behaviour = status.clone().unwrap().state;
+                floor = status.clone().unwrap().floor;
+                direction = match status.unwrap().direction {
                     elev::DIRN_UP => "up".to_string(),
                     elev::DIRN_DOWN => "down".to_string(),
                     _ => panic!("illegal direction"),

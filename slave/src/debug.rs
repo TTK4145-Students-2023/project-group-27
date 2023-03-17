@@ -8,31 +8,30 @@ use crossbeam_channel::{Receiver, select};
 use crossterm::{cursor, terminal, Result, ExecutableCommand};
 use driver_rust::elevio::elev;
 
-use crate::config::ElevatorSettings;
+use crate::{config::ElevatorSettings, prototype_fsm::ElevatorStatus};
 
 const STATUS_SIZE: u16 = 24;
 
 pub fn main(
     elevator_settings: ElevatorSettings,
-    orders_rx: Receiver<Vec<Vec<bool>>>,
-    elevator_state_rx: Receiver<(String, u8, u8)>,
+    //orders_rx: Receiver<Vec<Vec<bool>>>,
+    //elevator_state_rx: Receiver<(String, u8, u8)>,
+    elevator_status_rx: Receiver<ElevatorStatus>
 ) -> Result<()> {
     let mut stdout = stdout();
 
-    let mut state = (String::from("idle"), 0, 0);
+    let mut status = (String::from("idle"), 0, 0);
     let mut orders = vec![vec![false; elevator_settings.num_buttons as usize]; elevator_settings.num_floors as usize];
 
     for _ in 0..STATUS_SIZE { writeln!(stdout, "")?; }
 
     loop {
         select! {
-            recv(orders_rx) -> msg => {
-                orders = msg.unwrap();
-                printstatus(elevator_settings.clone(), &mut stdout, orders.clone(), state.clone())?;
-            },
-            recv(elevator_state_rx) -> msg => {
-                state = msg.unwrap();
-                printstatus(elevator_settings.clone(), &mut stdout, orders.clone(), state.clone())?;
+            recv(elevator_status_rx) -> msg => {
+                orders = msg.clone().unwrap().orders;
+                status = (msg.clone().unwrap().state, msg.clone().unwrap().floor, msg.clone().unwrap().direction);
+                printstatus(elevator_settings.clone(), &mut stdout, orders.clone(), status.clone())?;
+                printstatus(elevator_settings.clone(), &mut stdout, orders, status)?;
             },
         }
     }

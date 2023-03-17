@@ -12,10 +12,9 @@ enum State {
     DoorOpen,
 }
 
-#[derive(/*Clone, */Debug)] // As for now, the CallButton does not have clone trait, so use as_ref() as for now.
+#[derive(Clone, Debug)] // As for now, the CallButton does not have clone trait, so use as_ref() as for now.
 pub struct ElevatorStatus {
     pub orders: Vec<Vec<bool>>,
-    pub cleared_request: poll::CallButton,
     pub state: String,
     pub floor: u8,
     pub direction: u8
@@ -27,7 +26,7 @@ pub struct HallRequests {
     pub all_requests: Vec<[bool; 2]>
 }
 
-// Functions ---
+// --- Functions ---
 fn should_stop(
     n_floors: u8,
     orders: &Vec<Vec<bool>>,
@@ -90,7 +89,26 @@ fn next_direction(
     elev::DIRN_STOP
 }
 
-// --------
+fn update_orders(
+    n_floors: u8,
+    n_buttons: u8,
+    hall_requests: HallRequests,
+    button_light_tx: Sender<(u8,u8,bool)>
+) -> Vec<Vec<bool>> {
+    let mut orders = vec![vec![false; n_buttons as usize]; n_floors as usize];
+    let our_requests = hall_requests.our_requests;
+    let all_requests = hall_requests.all_requests;
+
+    for f in 0..n_floors {
+        for b in elev::HALL_UP..=elev::HALL_DOWN {
+            button_light_tx.send((f, b, all_requests[f as usize][b as usize])).unwrap();
+            orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
+        }
+    }
+    orders
+}
+
+// --- Functions ---
 
 pub fn main(
     elevator_settings: ElevatorSettings,
@@ -105,8 +123,8 @@ pub fn main(
     doors_activate_tx: Sender<bool>, // To doors
     motor_direction_tx: Sender<u8>, // To io
     floor_indicator_tx: Sender<u8>, // To io
+    cleared_request_tx: Sender<poll::CallButton>, // To network
     // orders_tx: Sender<Vec<Vec<bool>>>, // To debug
-    // cleared_request_tx: Sender<poll::CallButton>, // To network
     // elevator_state_tx: Sender<(String,u8,u8)>, // To network
     elevator_status_tx: Sender<ElevatorStatus> // To network & debug
 ) {
@@ -155,26 +173,37 @@ pub fn main(
             },
             recv(hall_requests_rx) -> msg => { // Not prioritized, since this is for debug
                 // --- Consider turning this part into a function
+                let all_requests = msg.clone().unwrap().all_requests;
+                let our_requests = msg.clone().unwrap().our_requests;
                 match state {
-                    State::Idle => {
+                    State::Moving => {
+                        //orders = update_orders(n_floors, n_buttons, msg.clone().unwrap(), button_light_tx.clone());
                         for f in 0..n_floors {
                             for b in elev::HALL_UP..=elev::HALL_DOWN {
-                                if msg.clone().unwrap().all_requests[f as usize][b as usize] {
-                                    /* Keep door open if elevator gets an order it already is at without sending further. */
-                                }
-                                else {
-                                    button_light_tx.send((f, b, msg.clone().unwrap().all_requests[f as usize][b as usize])).unwrap();
-                                    orders[f as usize][b as usize] = msg.clone().unwrap().our_requests[f as usize][b as usize];
-                                }
-                                
+                                button_light_tx.send((f, b, all_requests[f as usize][b as usize])).unwrap();
+                                orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
                             }
                         }
                     },
-                    State::Moving => {
-    
-                    },
-                    State::DoorOpen => {
-    
+                    _ => {
+                        for f in 0..n_floors {
+                            for b in elev::HALL_UP..=elev::HALL_DOWN {
+                                if our_requests[f as usize][b as usize] && f == floor {
+                                    state = State::DoorOpen;
+                                    doors_activate_tx.send(true).unwrap();
+                                    orders[f as usize][b as usize] = false;
+                                    cleared_request_tx.send(poll::CallButton {
+                                        floor: f,
+                                        call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
+                                    }).unwrap();
+                                    /* Keep door open if elevator gets an order it already is at without sending further. */
+                                }
+                                else {
+                                    button_light_tx.send((f, b, all_requests[f as usize][b as usize])).unwrap();
+                                    orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
+                                }
+                            }
+                        }
                     },
                 }
                 // --- or a method to the struct
@@ -183,15 +212,35 @@ pub fn main(
                 floor = msg.unwrap();
                 floor_indicator_tx.send(floor).unwrap();
                 match state {
-                    State::Idle => {()}, // This case should not be possible
                     State::Moving => {
                         if should_stop(n_floors, &orders, floor, direction) {
                             state = State::DoorOpen;
                             motor_direction_tx.send(elev::DIRN_STOP).unwrap();
                             doors_activate_tx.send(true).unwrap();
+
+                            orders[floor as usize][elev::CAB as usize] = false;
+                            button_light_tx.send((floor, elev::CAB, false)).unwrap();
+                            cleared_request_tx.send(poll::CallButton {
+                                floor: floor,
+                                call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
+                            }).unwrap();
+                            if !further_requests_in_direction(n_floors, &orders, floor, direction) {
+                                cleared_request_tx.send(poll::CallButton {
+                                    floor: floor,
+                                    call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
+                                }).unwrap();
+                            }
                         }
                     },
-                    State::DoorOpen => {()}, // This case should not be possible
+                    _ => (), // This case should not be possible as a still elevator does not reach a new floor
+                }
+            },
+            recv(doors_closing_rx) -> _ => {
+                match state {
+                    State::DoorOpen => {
+                        state = State::Idle;
+                    },
+                    _ => (),
                 }
             },
             recv(timer) -> _ => {
@@ -209,13 +258,7 @@ pub fn main(
                         }
                         
                     },
-                    State::Moving => {
-                        ()
-                    },
-                    State::DoorOpen => {
-                        // Remain open
-                        ()
-                    },
+                    _ => (),
                 }
             },
         }
@@ -230,13 +273,9 @@ pub fn main(
 
         elevator_status_tx.send(ElevatorStatus {
             orders: orders.clone(),
-            cleared_request: poll::CallButton {
-                floor: floor, // This one is from former "elevator_data_rx" in "requests"
-                call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
-            },
             state: String::from(state_str),
             floor: floor, // This one is presumed to be the same as the one above
-            direction,
+            direction: direction,
         }).unwrap();
     }
 }
