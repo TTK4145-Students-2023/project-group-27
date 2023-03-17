@@ -214,12 +214,12 @@ pub fn main(
             },
             recv(elevator_status_rx) -> status => {
                 // collect elevator state info from FSM
-                behaviour = status.clone().unwrap().state;
+                behaviour = status.clone().unwrap().behavior;
                 floor = status.clone().unwrap().floor;
-                direction = match status.unwrap().direction {
+                direction = match status.clone().unwrap().direction {
                     elev::DIRN_UP => "up".to_string(),
                     elev::DIRN_DOWN => "down".to_string(),
-                    _ => panic!("illegal direction"),
+                    _ => panic!("illegal direction, found {}", status.unwrap().direction),
                 };
             },
             recv(cab_requests_rx) -> msg => {

@@ -47,12 +47,12 @@ fn main() -> std::io::Result<()> {
     );
 
     // INITIALIZE THREAD FOR DOOR EVENTS
-    thread::spawn(move || doors::main(
+    thread::Builder::new().name("doors".to_string()).spawn(move || doors::main(
         obstruction_rx,
         doors_activate_rx,
         doors_closing_tx,
         door_light_tx
-    ));
+    ))?;
 
     // INITIALIZE THREAD FOR REQUEST EVENTS
     // {
@@ -87,7 +87,7 @@ fn main() -> std::io::Result<()> {
 
     // INITIALIZE THREAD FOR PROTOTYPE FSM
     let elevator_settings = config.settings.clone();
-    thread::spawn(move || prototype_fsm::main(
+    thread::Builder::new().name("prototype_fsm".to_string()).spawn(move || prototype_fsm::main(
         elevator_settings,
         cab_button_rx,
         hall_requests_rx,
@@ -100,13 +100,13 @@ fn main() -> std::io::Result<()> {
         floor_indicator_tx,
         cleared_request_tx,
         elevator_status_tx,
-    ));
+    ))?;
 
     // INITIALIZE NETWORK MODULE
     {
         let elevator_status_rx = elevator_status_rx.clone();
         let elevator_settings = config.settings.clone();
-        thread::spawn(move || network::main(
+        thread::Builder::new().name("network".to_string()).spawn(move || network::main(
             elevator_settings,
             config.network,
             hall_button_rx,
@@ -114,16 +114,16 @@ fn main() -> std::io::Result<()> {
             elevator_status_rx,
             cab_requests_rx,
             hall_requests_tx,
-        ));
+        ))?;
     }
 
     // INITIALIZE DEBUG MODULE
     {
         let elevator_settings = config.settings.clone();
-        thread::spawn(move || debug::main(
+        thread::Builder::new().name("debug".to_string()).spawn(move || debug::main(
             elevator_settings,
             elevator_status_rx,
-        ));
+        ))?;
     }
 
     loop {

@@ -20,16 +20,16 @@ pub fn main(
 ) -> Result<()> {
     let mut stdout = stdout();
 
-    let mut status = (String::from("idle"), 0, 0);
-    let mut orders = vec![vec![false; elevator_settings.num_buttons as usize]; elevator_settings.num_floors as usize];
+    // let mut status = (String::from("idle"), 0, 0);
+    // let mut orders = vec![vec![false; elevator_settings.num_buttons as usize]; elevator_settings.num_floors as usize];
 
     for _ in 0..STATUS_SIZE { writeln!(stdout, "")?; }
 
     loop {
         select! {
             recv(elevator_status_rx) -> msg => {
-                orders = msg.clone().unwrap().orders;
-                status = (msg.clone().unwrap().state, msg.clone().unwrap().floor, msg.clone().unwrap().direction);
+                let orders = msg.clone().unwrap().orders;
+                let status = (msg.clone().unwrap().behavior, msg.clone().unwrap().floor, msg.clone().unwrap().direction);
                 printstatus(elevator_settings.clone(), &mut stdout, orders.clone(), status.clone())?;
                 printstatus(elevator_settings.clone(), &mut stdout, orders, status)?;
             },

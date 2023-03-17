@@ -6,7 +6,7 @@ use driver_rust::elevio::{elev, poll};
 use crate::config::ElevatorSettings;
 
 #[derive(PartialEq, Debug)]
-enum State {
+enum Behavior {
     Idle,
     Moving,
     DoorOpen,
@@ -15,7 +15,7 @@ enum State {
 #[derive(Clone, Debug)] // As for now, the CallButton does not have clone trait, so use as_ref() as for now.
 pub struct ElevatorStatus {
     pub orders: Vec<Vec<bool>>,
-    pub state: String,
+    pub behavior: String,
     pub floor: u8,
     pub direction: u8
 }
@@ -135,8 +135,9 @@ pub fn main(
 
     let mut floor: u8 = 0;
     let mut direction: u8 = elev::DIRN_DOWN;
-    let mut state: State = State::Moving;
+    let mut behavior: Behavior = Behavior::Moving;
     let mut orders = vec![vec![false; n_buttons as usize]; n_floors as usize];
+    let mut cab_requests = vec![false; n_floors as usize];
 
     // CLEAR ALL LIGHTS
     for floor in 0..n_floors {
@@ -148,26 +149,49 @@ pub fn main(
     loop {
         select! {
             recv(cab_button_rx) -> msg => {
-                match state {
-                    State::Idle => {
-                        state = State::DoorOpen;
-                        doors_activate_tx.send(true).unwrap();
+                match behavior {
+                    Behavior::Idle => {
+                        if floor == msg.as_ref().unwrap().floor {
+                            behavior = Behavior::DoorOpen;
+                            doors_activate_tx.send(true).unwrap();
+                        }
+                        else {
+                            let destination = msg.as_ref().unwrap().floor;
+                            // --- Consider turning this part into a function
+                            orders[destination as usize][elev::CAB as usize] = true;
+                            button_light_tx.send((destination, elev::CAB, true)).unwrap();
+                            for floor in 0..n_floors {
+                                cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
+                            }
+                            cab_requests_tx.send(cab_requests.clone()).unwrap();
+                        }
                     },
-                    State::Moving => {
+                    Behavior::Moving => {
                         let destination = msg.as_ref().unwrap().floor;
                         // --- Consider turning this part into a function
                         orders[destination as usize][elev::CAB as usize] = true;
                         button_light_tx.send((destination, elev::CAB, true)).unwrap();
-                        let mut cab_requests = vec![false; n_floors as usize];
                         for floor in 0..n_floors {
                             cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
                         }
-                        cab_requests_tx.send(cab_requests).unwrap();
+                        cab_requests_tx.send(cab_requests.clone()).unwrap();
                         // This cab order vector can be unpacked at network instead of here
                         // --- or a method to a struct
                     },
-                    State::DoorOpen => {
-                        doors_activate_tx.send(true).unwrap();
+                    Behavior::DoorOpen => {
+                        if floor == msg.as_ref().unwrap().floor {
+                            doors_activate_tx.send(true).unwrap();
+                        }
+                        else {
+                            let destination = msg.as_ref().unwrap().floor;
+                            // --- Consider turning this part into a function
+                            orders[destination as usize][elev::CAB as usize] = true;
+                            button_light_tx.send((destination, elev::CAB, true)).unwrap();
+                            for floor in 0..n_floors {
+                                cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
+                            }
+                            cab_requests_tx.send(cab_requests.clone()).unwrap();
+                        }
                     },
                 }
             },
@@ -175,8 +199,8 @@ pub fn main(
                 // --- Consider turning this part into a function
                 let all_requests = msg.clone().unwrap().all_requests;
                 let our_requests = msg.clone().unwrap().our_requests;
-                match state {
-                    State::Moving => {
+                match behavior {
+                    Behavior::Moving => {
                         //orders = update_orders(n_floors, n_buttons, msg.clone().unwrap(), button_light_tx.clone());
                         for f in 0..n_floors {
                             for b in elev::HALL_UP..=elev::HALL_DOWN {
@@ -189,13 +213,21 @@ pub fn main(
                         for f in 0..n_floors {
                             for b in elev::HALL_UP..=elev::HALL_DOWN {
                                 if our_requests[f as usize][b as usize] && f == floor {
-                                    state = State::DoorOpen;
-                                    doors_activate_tx.send(true).unwrap();
-                                    orders[f as usize][b as usize] = false;
-                                    cleared_request_tx.send(poll::CallButton {
+                                    if !further_requests_in_direction(n_floors, &orders, floor, direction)
+                                    || cab_requests[f as usize] == orders[f as usize][b as usize] {
+                                        behavior = Behavior::DoorOpen;
+                                        doors_activate_tx.send(true).unwrap();
+                                        button_light_tx.send((floor, elev::CAB, false)).unwrap();
+                                        orders[f as usize][b as usize] = false;
+                                        cleared_request_tx.send(poll::CallButton {
                                         floor: f,
                                         call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
                                     }).unwrap();
+                                        cleared_request_tx.send(poll::CallButton {
+                                            floor: floor,
+                                            call: if direction == elev::DIRN_UP { elev::HALL_DOWN } else { elev::HALL_UP },
+                                        }).unwrap();
+                                    }
                                     /* Keep door open if elevator gets an order it already is at without sending further. */
                                 }
                                 else {
@@ -211,10 +243,10 @@ pub fn main(
             recv(floor_sensor_rx) -> msg => {
                 floor = msg.unwrap();
                 floor_indicator_tx.send(floor).unwrap();
-                match state {
-                    State::Moving => {
+                match behavior {
+                    Behavior::Moving => {
                         if should_stop(n_floors, &orders, floor, direction) {
-                            state = State::DoorOpen;
+                            behavior = Behavior::DoorOpen;
                             motor_direction_tx.send(elev::DIRN_STOP).unwrap();
                             doors_activate_tx.send(true).unwrap();
 
@@ -227,7 +259,7 @@ pub fn main(
                             if !further_requests_in_direction(n_floors, &orders, floor, direction) {
                                 cleared_request_tx.send(poll::CallButton {
                                     floor: floor,
-                                    call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
+                                    call: if direction == elev::DIRN_UP { elev::HALL_DOWN } else { elev::HALL_UP },
                                 }).unwrap();
                             }
                         }
@@ -236,24 +268,24 @@ pub fn main(
                 }
             },
             recv(doors_closing_rx) -> _ => {
-                match state {
-                    State::DoorOpen => {
-                        state = State::Idle;
+                match behavior {
+                    Behavior::DoorOpen => {
+                        behavior = Behavior::Idle;
                     },
                     _ => (),
                 }
             },
             recv(timer) -> _ => {
-                match state {
-                    State::Idle => {
+                match behavior {
+                    Behavior::Idle => {
                         let next_direction = next_direction(n_floors, &orders, floor, direction);
                         match next_direction {
-                            elev::DIRN_UP | elev::DIRN_DOWN => (),
-                            _ => {
+                            elev::DIRN_UP | elev::DIRN_DOWN => {
                                 motor_direction_tx.send(next_direction).unwrap();
                                 direction = next_direction;
-                                state = State::Moving
-                            }
+                                behavior = Behavior::Moving
+                            },
+                            _ => ()
                             
                         }
                         
@@ -264,18 +296,18 @@ pub fn main(
         }
 
         // This part is run to get the latest update of states, no matter which recv() was used.
-        let state_str = match state {
-            State::Idle => "idle",
-            State::Moving => "moving",
-            State::DoorOpen => "doorOpen",
+        let behavior_str = match behavior {
+            Behavior::Idle => "idle",
+            Behavior::Moving => "moving",
+            Behavior::DoorOpen => "doorOpen",
         }; // State is converted to string such that we don't need the state enum dependency at "network"
         // And also, the string is needed for the hall request assigner. 
 
         elevator_status_tx.send(ElevatorStatus {
             orders: orders.clone(),
-            state: String::from(state_str),
-            floor: floor, // This one is presumed to be the same as the one above
-            direction: direction,
+            behavior: String::from(behavior_str),
+            floor, // This one is presumed to be the same as the one above
+            direction,
         }).unwrap();
     }
 }
