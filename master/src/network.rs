@@ -4,32 +4,17 @@
 /// among the connected elevators and UDP broadcasts the result. 
 
 use std::thread::spawn;
-use std::process;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
 
 use crossbeam_channel::{unbounded, select, Sender, tick};
 use network_rust::udpnet;
 
-use crate::config::{self, UPDATE_PORTS, COMMAND_PORTS};
-use crate::hall_request_assigner::*;
+use shared_resources::config::MasterConfig;
+use shared_resources::call::Call;
+use shared_resources::elevator_message::ElevatorMessage;
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct HallOrder {
-    pub floor: u8,
-    pub call: u8
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
-pub struct ElevatorMessage {
-    pub id: String,
-    pub behaviour: String,
-    pub floor: u8,
-    pub direction: String,
-    pub cab_requests: [bool; config::ELEV_NUM_FLOORS as usize],
-    pub new_hall_orders: Vec<HallOrder>,
-    pub served_hall_orders: Vec<HallOrder>,
-}
+use crate::utilities::hall_request_assigner::*;
 
 #[derive(Clone)]
 pub struct ElevatorData {
@@ -38,36 +23,38 @@ pub struct ElevatorData {
 }
 
 pub fn main(
-    hall_requests_tx: Sender<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    config: MasterConfig,
+    hall_requests_tx: Sender<Vec<Vec<bool>>>,
     connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
 ) {
-    let (command_tx, command_rx) = unbounded::<HashMap<String, [[bool; 2]; config::ELEV_NUM_FLOORS as usize]>>();
-    for port in COMMAND_PORTS {
+    let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<Vec<bool>>>>();
+    for port in config.network.command_ports {
         let command_rx = command_rx.clone();
         spawn(move || {
             if udpnet::bcast::tx(port, command_rx).is_err() {
-                process::exit(1);
+                panic!("Could not establish sending connection with slave. Port {} already in use?", port);
             }
         });
     }
 
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
-    for port in UPDATE_PORTS {
+    for port in config.network.update_ports {
         let elevator_message_tx = elevator_message_tx.clone();
         spawn(move || {
             if udpnet::bcast::rx(port, elevator_message_tx).is_err() {
-                process::exit(1);
+                panic!("Could not establish receiving connection from slave. Port {} already in use?", port);
             }
         });
     }
+    
+    const TIMEOUT: f64 = 5.0;
 
+    let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
     let timer = tick(update_freq);
 
-    const TIMEOUT: f64 = 5.0;
-
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
-    let mut hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
+    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; config.elevator.num_floors as usize];
     
     loop {
         select! {
@@ -105,16 +92,15 @@ pub fn main(
                 for (id, data) in connected_elevators.clone() {
                     states.insert(id, data.state);
                 }
-                let output = match assign_orders(hall_requests, states) {
+                let output = match assign_orders(&hra_exec_path, hall_requests.clone(), states) {
                     Ok(result) => result,
                     Err(_) => continue, // give up and try again next time :)
                 };
 
                 // broadcast assigned orders
-
                 command_tx.send(output).unwrap();
 
-                hall_requests_tx.send(hall_requests).unwrap();
+                hall_requests_tx.send(hall_requests.clone()).unwrap();
             },
             recv(timer) -> _ => {
                 // remove lost elevators

@@ -7,15 +7,15 @@ use std::time::Duration;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
 
-use crate::utilities::elevator_behaviour::{ElevatorBehaviour, Behaviour};
-use crate::utilities::config::ElevatorSettings;
-use crate::utilities::master_message::MasterMessage;
-use crate::utilities::call::Call;
-use crate::utilities::direction::Direction;
-use crate::utilities::request::Request;
+use shared_resources::elevator_behaviour::{ElevatorBehaviour, Behaviour};
+use shared_resources::config::ElevatorConfig;
+use shared_resources::master_message::MasterMessage;
+use shared_resources::call::Call;
+use shared_resources::direction::Direction;
+use shared_resources::request::Request;
 
 pub fn main(
-    elevator_settings: ElevatorSettings,
+    elevator_settings: ElevatorConfig,
     floor_sensor_rx: Receiver<u8>,
     floor_indicator_tx: Sender<u8>,
     button_light_tx: Sender<(Request,bool)>,
@@ -42,7 +42,7 @@ pub fn main(
                 let message = msg.unwrap();
                 elevator_behaviour.requests.update_hall_requests(message.our_hall_requests);
                 for floor in 0..num_floors {
-                    for call in Call::iter() {
+                    for call in Call::iter_hall() {
                         button_light_tx.send((
                             Request{ floor: floor, call: call }, 
                             message.all_hall_requests[floor as usize][call as usize],

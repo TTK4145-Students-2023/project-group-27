@@ -2,7 +2,7 @@ use std::thread;
 
 use crossbeam_channel::{select, unbounded};
 
-use super::utilities::debug::Debug;
+use crate::utilities::debug::Debug;
 
 pub mod doors;
 pub mod io;
@@ -11,7 +11,7 @@ pub mod network;
 
 pub fn run() -> std::io::Result<()> {
     // READ CONFIGURATION
-    let config = super::utilities::config::Config::get();
+    let config = shared_resources::config::SlaveConfig::get();
 
     // INITIALIZE CHANNELS
     let (doors_activate_tx, doors_activate_rx) = unbounded();
@@ -32,7 +32,7 @@ pub fn run() -> std::io::Result<()> {
         floor_indicator_tx,
     ) = io::init(
         config.server,
-        config.settings.clone(),
+        config.elevator.clone(),
     );
 
     // INITIALIZE THREAD FOR DOOR EVENTS
@@ -45,7 +45,7 @@ pub fn run() -> std::io::Result<()> {
 
     // INITIALIZE THREAD FOR STATE MACHINE
     {
-        let elevator_settings = config.settings.clone();
+        let elevator_settings = config.elevator.clone();
         thread::spawn(move || fsm::main(
             elevator_settings,
             floor_sensor_rx,
@@ -62,7 +62,7 @@ pub fn run() -> std::io::Result<()> {
 
     // INITIALIZE NETWORK MODULE
     {
-        let elevator_settings = config.settings.clone();
+        let elevator_settings = config.elevator.clone();
         let elevator_behaviour_rx = elevator_behaviour_rx.clone();
         thread::spawn(move || network::main(
             elevator_settings,
@@ -73,7 +73,7 @@ pub fn run() -> std::io::Result<()> {
         ));
     }
 
-    let num_floors = config.settings.num_floors;
+    let num_floors = config.elevator.num_floors;
     let mut debug = Debug::new(num_floors);
 
     loop {

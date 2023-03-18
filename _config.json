@@ -1,0 +1,15 @@
+{
+    "network": {
+        "update_ports": [19735, 19736, 19737],
+        "command_ports": [19738, 19739, 19740]
+    },
+    "server": {
+        "port": 15657
+    },
+    "elevator": {
+        "num_floors": 4
+    },
+    "hall_request_assigner": {
+        "exec_path": "hall_request_assigner"
+    }
+}

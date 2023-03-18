@@ -36,4 +36,8 @@ impl Call {
     pub fn iter() -> impl Iterator<Item = Call> {
         [Call::HallUp, Call::HallDown, Call::Cab].iter().copied()
     }
+
+    pub fn iter_hall() -> impl Iterator<Item = Call> {
+        [Call::HallUp, Call::HallDown].iter().copied()
+    }
 }

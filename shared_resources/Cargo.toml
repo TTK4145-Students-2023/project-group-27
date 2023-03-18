@@ -1,14 +1,11 @@
 [package]
-name = "master"
+name = "shared_resources"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-network-rust = { git = "https://github.com/TTK4145/network-rust", tag = "v0.3.0" }
-crossbeam-channel = "0.5.7"
+driver-rust = { git = "https://github.com/TTK4145/driver-rust", tag = "v0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-crossterm = "0.26.1"
-shared_resources = { path = "../shared_resources", version = "0.1.0" }

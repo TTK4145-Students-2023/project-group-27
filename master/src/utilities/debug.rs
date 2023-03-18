@@ -10,37 +10,40 @@ use std::time::Instant;
 use crossbeam_channel::{Receiver, select};
 use crossterm::{cursor, terminal, Result, ExecutableCommand};
 
-use crate::config;
+use shared_resources::call::Call;
+
 use crate::network::ElevatorData;
 
 const STATUS_SIZE: u16 = 20;
 
 pub fn main(
-    hall_requests_rx: Receiver<[[bool; 2]; config::ELEV_NUM_FLOORS as usize]>,
+    num_floors: u8,
+    hall_requests_rx: Receiver<Vec<Vec<bool>>>,
     connected_elevators_rx: Receiver<HashMap<String, ElevatorData>>,
 ) -> Result<()> {
     let mut stdout = stdout();
 
-    let mut hall_requests = [[false; 2]; config::ELEV_NUM_FLOORS as usize];
+    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; num_floors as usize];
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
 
     loop {
         select! {
             recv(hall_requests_rx) -> msg => {
                 hall_requests = msg.unwrap();
-                printstatus(&mut stdout, hall_requests, connected_elevators.clone())?;
+                printstatus(num_floors, &mut stdout, &hall_requests, connected_elevators.clone())?;
             },
             recv(connected_elevators_rx) -> msg => {
                 connected_elevators = msg.unwrap();
-                printstatus(&mut stdout, hall_requests, connected_elevators.clone())?;
+                printstatus(num_floors, &mut stdout, &hall_requests, connected_elevators.clone())?;
             },
         }
     }
 }
 
 fn printstatus(
+    num_floors: u8,
     stdout: &mut Stdout,
-    hall_requests: [[bool; 2]; config::ELEV_NUM_FLOORS as usize],
+    hall_requests: &Vec<Vec<bool>>,
     connected_elevators: HashMap<String, ElevatorData>,
 ) -> Result<()> {
     
@@ -50,7 +53,7 @@ fn printstatus(
     writeln!(stdout, "| HALL ORDERS                          |")?;
     writeln!(stdout, "+------------+------------+------------+")?;
     writeln!(stdout, "| {0:<10} | {1:<10} | {2:<10} |", "FLOOR", "HALL UP", "HALL DOWN")?;
-    for i in (0..config::ELEV_NUM_FLOORS).rev() {
+    for i in (0..num_floors).rev() {
         writeln!(stdout, "+------------+------------+------------+")?;
         writeln!(stdout, "| {0:<10} | {1:<10} | {2:<10} |", i, hall_requests[i as usize][0],  hall_requests[i as usize][1])?;
     }

@@ -9,14 +9,14 @@ use std::thread::spawn;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use driver_rust::elevio::{poll, elev};
 
-use crate::utilities::config;
-use crate::utilities::direction::Direction;
-use crate::utilities::call::Call;
-use crate::utilities::request::Request;
+use shared_resources::config;
+use shared_resources::direction::Direction;
+use shared_resources::call::Call;
+use shared_resources::request::Request;
 
 pub fn init(
     server_config: config::ServerConfig,
-    elevator_settings: config::ElevatorSettings,
+    elevator_settings: config::ElevatorConfig,
 ) -> (
     Receiver<u8>, 
     Receiver<Request>, 

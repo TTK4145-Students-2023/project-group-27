@@ -12,7 +12,7 @@ impl MasterMessage {
         let mut all_hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; num_floors as usize];
         for (_, requests) in &message {
             for floor in 0..num_floors {
-                for btn in Call::iter() {
+                for btn in Call::iter_hall() {
                     if requests[floor as usize][btn as usize] {
                         all_hall_requests[floor as usize][btn as usize] = true;
                     }

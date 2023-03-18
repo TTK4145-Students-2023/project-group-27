@@ -25,7 +25,7 @@ impl Requests {
 
     pub fn update_hall_requests(&mut self, our_hall_requests: Vec<Vec<bool>>) {
         for floor in 0..self.num_floors {
-            for btn in Call::iter() {
+            for btn in Call::iter_hall() {
                 self.requests[floor as usize][btn as usize] = our_hall_requests[floor as usize][btn as usize];
             }
         }
