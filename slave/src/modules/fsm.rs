@@ -9,10 +9,11 @@ use crossbeam_channel::{select, Receiver, Sender, tick};
 
 use shared_resources::elevator_behaviour::{ElevatorBehaviour, Behaviour};
 use shared_resources::config::ElevatorConfig;
-use shared_resources::master_message::MasterMessage;
 use shared_resources::call::Call;
 use shared_resources::direction::Direction;
 use shared_resources::request::Request;
+
+use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
     elevator_settings: ElevatorConfig,

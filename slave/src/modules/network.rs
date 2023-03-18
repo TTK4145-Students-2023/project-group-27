@@ -18,7 +18,8 @@ use shared_resources::elevator_behaviour::ElevatorBehaviour;
 use shared_resources::request_buffer::RequestBuffer;
 use shared_resources::request::Request;
 use shared_resources::elevator_message::ElevatorMessage;
-use shared_resources::master_message::MasterMessage;
+
+use crate::utilities::master_message::MasterMessage;
 
 fn get_id() -> String {
     let local_ip = net::TcpStream::connect("8.8.8.8:53")

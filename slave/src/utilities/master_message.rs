@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::call::Call;
+use shared_resources::call::Call;
 
 pub struct MasterMessage {
     pub our_hall_requests: Vec<Vec<bool>>,
