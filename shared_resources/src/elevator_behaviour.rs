@@ -26,7 +26,7 @@ pub struct ElevatorBehaviour {
     pub behaviour: Behaviour,
     pub floor: u8,
     pub direction: Direction,
-    pub served_requests: Vec<Request>,
+    served_requests: Vec<Request>,
 }
 
 impl ElevatorBehaviour {
@@ -42,6 +42,7 @@ impl ElevatorBehaviour {
     
     pub fn serve_requests_here(&mut self) {
         self.requests.clear_cab_request(self.floor);
+        self.served_requests.clear();
         self.served_requests.push(Request {
             floor: self.floor,
             call: if self.direction == Direction::Up { Call::HallUp } else { Call::HallDown },
@@ -55,8 +56,10 @@ impl ElevatorBehaviour {
         }
     }
     
-    pub fn flush_served_requests(&mut self) {
-        self.served_requests = Vec::new();
+    pub fn pop_served_requests(&mut self) -> Vec<Request> {
+        let served_requests = self.served_requests.clone();
+        self.served_requests.clear();
+        served_requests
     }
     
     pub fn should_stop(&self) -> bool {

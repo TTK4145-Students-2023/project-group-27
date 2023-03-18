@@ -37,7 +37,7 @@ pub fn main(
     master_hall_requests_tx: Sender<MasterMessage>,
     elevator_behaviour_rx: Receiver<ElevatorBehaviour>,
 ) {
-    let update_master = tick(Duration::from_secs_f64(0.1));
+    let update_master = tick(Duration::from_secs_f64(0.25));
 
     const TIMEOUT: u64 = 5;
 
@@ -76,17 +76,18 @@ pub fn main(
             },
             recv(elevator_behaviour_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
-                hall_request_buffer.insert_served_requests(elevator_behaviour.clone().served_requests);
+                hall_request_buffer.insert_served_requests(elevator_behaviour.pop_served_requests());
             } 
             recv(update_master) -> _ => {
                 // remove timed out orders
                 hall_request_buffer.remove_timed_out_orders();
                 // send state and collected orders to master
-                elevator_message_tx.send(ElevatorMessage::new(
+                let message = ElevatorMessage::new(
                     id.clone(),
                     elevator_behaviour.clone(),
                     &hall_request_buffer
-                )).unwrap();
+                );
+                elevator_message_tx.send(message).unwrap();
             }
         }
     }

@@ -96,6 +96,5 @@ pub fn main(
             }
         }
         elevator_behaviour_tx.send(elevator_behaviour.clone()).unwrap();
-        elevator_behaviour.flush_served_requests();
     }
 }
