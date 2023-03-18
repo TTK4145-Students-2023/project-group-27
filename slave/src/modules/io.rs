@@ -9,10 +9,10 @@ use std::thread::spawn;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use driver_rust::elevio::{poll, elev};
 
-use crate::utils::config;
-use crate::utils::direction::Direction;
-use crate::utils::call::Call;
-use crate::utils::request::Request;
+use crate::utilities::config;
+use crate::utilities::direction::Direction;
+use crate::utilities::call::Call;
+use crate::utilities::request::Request;
 
 pub fn init(
     server_config: config::ServerConfig,

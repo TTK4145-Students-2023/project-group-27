@@ -13,12 +13,12 @@ use std::time::Duration;
 use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
 use network_rust::udpnet;
 
-use crate::utils::config::{ElevatorSettings, NetworkConfig};
-use crate::utils::elevator_behaviour::ElevatorBehaviour;
-use crate::utils::request_buffer::RequestBuffer;
-use crate::utils::request::Request;
-use crate::utils::elevator_message::ElevatorMessage;
-use crate::utils::master_message::MasterMessage;
+use crate::utilities::config::{ElevatorSettings, NetworkConfig};
+use crate::utilities::elevator_behaviour::ElevatorBehaviour;
+use crate::utilities::request_buffer::RequestBuffer;
+use crate::utilities::request::Request;
+use crate::utilities::elevator_message::ElevatorMessage;
+use crate::utilities::master_message::MasterMessage;
 
 fn get_id() -> String {
     let local_ip = net::TcpStream::connect("8.8.8.8:53")
@@ -66,6 +66,7 @@ pub fn main(
                 // decode command message from master
                 let message = msg.unwrap();
                 let master_message = MasterMessage::parse(message, num_floors, id.clone());
+                hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
                 master_hall_requests_tx.send(master_message).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {

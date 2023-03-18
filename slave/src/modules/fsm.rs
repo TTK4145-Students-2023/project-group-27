@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
 
-use crate::utils::elevator_behaviour::{ElevatorBehaviour, Behaviour};
-use crate::utils::config::ElevatorSettings;
-use crate::utils::master_message::MasterMessage;
-use crate::utils::call::Call;
-use crate::utils::direction::Direction;
-use crate::utils::request::Request;
+use crate::utilities::elevator_behaviour::{ElevatorBehaviour, Behaviour};
+use crate::utilities::config::ElevatorSettings;
+use crate::utilities::master_message::MasterMessage;
+use crate::utilities::call::Call;
+use crate::utilities::direction::Direction;
+use crate::utilities::request::Request;
 
 pub fn main(
     elevator_settings: ElevatorSettings,

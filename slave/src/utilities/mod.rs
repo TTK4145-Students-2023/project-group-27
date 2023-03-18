@@ -1,6 +1,6 @@
+mod requests;
 pub mod request;
 pub mod request_buffer;
-pub mod requests;
 pub mod elevator_behaviour;
 pub mod config;
 pub mod call;

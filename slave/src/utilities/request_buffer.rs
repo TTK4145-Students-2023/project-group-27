@@ -41,7 +41,7 @@ impl RequestBuffer {
         }
     }
 
-    pub fn remove_confirmed_requests(&mut self, all_hall_requests: &Vec<[bool; 2]>) {
+    pub fn remove_confirmed_requests(&mut self, all_hall_requests: &Vec<Vec<bool>>) {
         for index in (0..self.new_requests.len()).rev() {
             let floor = self.new_requests[index].floor;
             let call = self.new_requests[index].call;
