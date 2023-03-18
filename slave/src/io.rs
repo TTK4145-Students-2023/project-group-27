@@ -9,19 +9,22 @@ use std::thread::spawn;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 use driver_rust::elevio::{poll, elev};
 
-use crate::config;
+use crate::utils::config;
+use crate::utils::direction::Direction;
+use crate::utils::call::Call;
+use crate::utils::request::Request;
 
 pub fn init(
     server_config: config::ServerConfig,
     elevator_settings: config::ElevatorSettings,
 ) -> (
-    Receiver<poll::CallButton>, 
-    Receiver<poll::CallButton>, 
+    Receiver<u8>, 
+    Receiver<Request>, 
     Receiver<u8>,
     Receiver<bool>,
     Receiver<bool>,
-    Sender<(u8,u8,bool)>,
-    Sender<u8>,
+    Sender<(Request,bool)>,
+    Sender<Direction>,
     Sender<bool>,
     Sender<u8>,
 ) {
@@ -36,9 +39,9 @@ pub fn init(
         let elevator = elevator.clone();
         spawn(move || poll::call_buttons(elevator, call_button_tx, poll_period));
         spawn(move || { loop {
-            let button_call = call_button_rx.recv().unwrap();
+            let button_call = Request::from_elev(call_button_rx.recv().unwrap());
             match button_call.call {
-                elev::CAB => cab_button_tx.send(button_call).unwrap(),
+                Call::Cab => cab_button_tx.send(button_call.floor).unwrap(),
                 _ => hall_button_tx.send(button_call).unwrap(),
             }
         }});
@@ -66,8 +69,8 @@ pub fn init(
     {
         let elevator = elevator.clone();
         spawn(move || { loop {
-            let (floor, call, on) = button_light_rx.recv().unwrap();
-            elevator.call_button_light(floor, call, on);
+            let (request, on): (Request, bool) = button_light_rx.recv().unwrap();
+            elevator.call_button_light(request.floor, request.call.as_elev_constant(), on);
         }});
     }
 
@@ -75,8 +78,8 @@ pub fn init(
     {
         let elevator = elevator.clone();
         spawn(move || { loop {
-            let dirn = motor_direction_rx.recv().unwrap();
-            elevator.motor_direction(dirn);
+            let dirn: Direction = motor_direction_rx.recv().unwrap();
+            elevator.motor_direction(dirn.as_elev_constant());
         }});
     }
 
@@ -101,7 +104,7 @@ pub fn init(
 
     // DRIVE ELEVATOR TO FLOOR
     if elevator.floor_sensor().is_none() {
-        motor_direction_tx.send(elev::DIRN_DOWN).unwrap();
+        motor_direction_tx.send(Direction::Down).unwrap();
     }
     
     (cab_button_rx, 

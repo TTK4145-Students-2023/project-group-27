@@ -6,95 +6,95 @@
 use std::time::Duration;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
-use driver_rust::elevio::elev::{self, DIRN_DOWN};
 
-#[derive(PartialEq, Debug)]
-enum State {
-    Idle,
-    Moving,
-    DoorOpen,
-}
+use crate::utils::elevator_behaviour::{ElevatorBehaviour, Behaviour};
+use crate::utils::config::ElevatorSettings;
+use crate::utils::master_message::MasterMessage;
+use crate::utils::call::Call;
+use crate::utils::direction::Direction;
+use crate::utils::request::Request;
 
 pub fn main(
-    should_stop_rx: Receiver<bool>,
-    next_direction_rx: Receiver<u8>,
-    doors_closing_rx: Receiver<bool>,
+    elevator_settings: ElevatorSettings,
     floor_sensor_rx: Receiver<u8>,
-    doors_activate_tx: Sender<bool>,
-    motor_direction_tx: Sender<u8>,
     floor_indicator_tx: Sender<u8>,
-    elevator_state_tx: Sender<(String,u8,u8)>,
-    elevator_data_tx: Sender<(u8,u8,bool)>,
+    button_light_tx: Sender<(Request,bool)>,
+    doors_closing_rx: Receiver<bool>,
+    doors_activate_tx: Sender<bool>,
+    cab_button_rx: Receiver<u8>,
+    motor_direction_tx: Sender<Direction>,
+    master_hall_requests_rx: Receiver<MasterMessage>,
+    elevator_behaviour_tx: Sender<ElevatorBehaviour>,
 ) {
     let timer = tick(Duration::from_secs_f64(0.25));
-    let mut floor: u8 = 0;
-    let mut direction: u8 = DIRN_DOWN;
-    let mut state: State = State::Moving;
+
+    let num_floors = elevator_settings.num_floors;
+    let mut elevator_behaviour = ElevatorBehaviour::new(num_floors);
 
     loop {
         select! {
-            recv(floor_sensor_rx) -> msg => {
-                floor = msg.unwrap();
-                floor_indicator_tx.send(floor).unwrap();
-                let is_stopped = state != State::Moving;
-                elevator_data_tx.send((floor, direction, is_stopped)).unwrap();
+            recv(cab_button_rx) -> msg => {
+                let floor = msg.unwrap();
+                elevator_behaviour.requests.add_order(floor, Call::Cab);
+                button_light_tx.send((Request{ floor: floor, call: Call::Cab }, true)).unwrap();
             },
-            recv(should_stop_rx) -> _ => {
-                match state {
-                    State::Idle => {
-                        state = State::DoorOpen;
-                        doors_activate_tx.send(true).unwrap();
-                    },
-                    State::Moving => {
-                        state = State::DoorOpen;
-                        motor_direction_tx.send(elev::DIRN_STOP).unwrap();
-                        doors_activate_tx.send(true).unwrap();
-                    },
-                    State::DoorOpen => (),
+            recv(master_hall_requests_rx) -> msg => {
+                let message = msg.unwrap();
+                elevator_behaviour.requests.update_hall_requests(message.our_hall_requests);
+                for floor in 0..num_floors {
+                    for call in Call::iter() {
+                        button_light_tx.send((
+                            Request{ floor: floor, call: call }, 
+                            message.all_hall_requests[floor as usize][call as usize],
+                        )).unwrap();
+                    }
                 }
             },
-            recv(next_direction_rx) -> dirn => {
-                match state {
-                    State::Idle => {
-                        match dirn.unwrap() {
-                            elev::DIRN_UP | elev::DIRN_DOWN => {
-                                motor_direction_tx.send(dirn.unwrap()).unwrap();
-                                direction = dirn.unwrap();
-                                state = State::Moving;
-                            },
-                            _ => ()
-                        }
-                    },
-                    State::Moving => (),
-                    State::DoorOpen => (),
+            recv(floor_sensor_rx) -> msg => {
+                elevator_behaviour.floor = msg.unwrap();
+                floor_indicator_tx.send(elevator_behaviour.floor).unwrap();
+                if elevator_behaviour.should_stop() {
+                    elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                        Behaviour::Idle | Behaviour::Moving => {
+                            motor_direction_tx.send(Direction::Stop).unwrap();
+                            doors_activate_tx.send(true).unwrap();
+                            elevator_behaviour.serve_requests_here();
+                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
+                            Behaviour::DoorOpen
+                        },
+                        Behaviour::DoorOpen => elevator_behaviour.behaviour,
+                    }
                 }
             },
             recv(doors_closing_rx) -> _ => {
-                match state {
-                    State::Idle => (),
-                    State::Moving => (),
-                    State::DoorOpen => {
-                        state = State::Idle;
-                    },
+                elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                    Behaviour::DoorOpen => Behaviour::Idle,
+                    Behaviour::Idle | Behaviour::Moving => elevator_behaviour.behaviour,
                 }
             },
             recv(timer) -> _ => {
-                if state != State::Moving { // TODO: consider negating this logic
-                    elevator_data_tx.send((floor, direction, true)).unwrap();
+                elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                    Behaviour::Idle => {
+                        let next_direction = elevator_behaviour.next_direction();
+                        if next_direction.is_some() {
+                            motor_direction_tx.send(next_direction.unwrap()).unwrap();
+                            elevator_behaviour.direction = next_direction.unwrap();
+                            Behaviour::Moving
+                        } else if elevator_behaviour.current_floor_has_requests()
+                            && elevator_behaviour.should_stop() {
+                            doors_activate_tx.send(true).unwrap();
+                            elevator_behaviour.serve_requests_here();
+                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
+                            Behaviour::DoorOpen
+                        }else {
+                            elevator_behaviour.behaviour
+                        }
+                    },
+                    Behaviour::Moving | Behaviour::DoorOpen => elevator_behaviour.behaviour,
                 }
-            },
+            }
         }
-
-        // for every loop: send state information to network module
-        let state_str = match state {
-            State::Idle => "idle",
-            State::Moving => "moving",
-            State::DoorOpen => "doorOpen",
-        };
-        elevator_state_tx.send((
-            String::from(state_str),
-            floor,
-            direction,
-        )).unwrap();
+        elevator_behaviour_tx.send(elevator_behaviour.clone()).unwrap();
+        elevator_behaviour.flush_served_requests();
     }
 }

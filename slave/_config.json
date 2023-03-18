@@ -7,7 +7,6 @@
         "port": 15657
     },
     "settings": {
-        "numFloors": 4,
-        "numButtons": 3
+        "numFloors": 4
     }
 }

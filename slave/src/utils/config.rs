@@ -1,8 +1,5 @@
-/// ----- CONFIG MODULE -----
-/// This stateless module reads command line arguments a "config.json" file
-/// and returns a Config struct containing setup specific parameters.
-
-use std::{fs, collections::HashMap};
+use std::fs;
+use std::collections::HashMap;
 use std::env;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -26,7 +23,6 @@ pub struct ServerConfig {
 #[derive(Debug, Clone)]
 pub struct ElevatorSettings {
     pub num_floors: u8,
-    pub num_buttons: u8,
 }
 
 #[derive(Debug, Clone)]
@@ -36,31 +32,32 @@ pub struct Config {
     pub settings: ElevatorSettings,
 }
 
-pub fn get_config() -> Config {
-    let file_path = "config.json";
-    let fallback_file_path = "_config.json";
-    let config_contents = match fs::read_to_string(file_path) {
-        Ok(content) => content,
-        Err(_) => {
-            println!("No configuration file provided, using default settings...");
-            fs::read_to_string(fallback_file_path).unwrap()
-        },
-    };
-    let config_file: ConfigFile = serde_json::from_str(&config_contents).unwrap();
-    let (elevnum, serverport) = parse_env_args(config_file.server["port"]);
-    
-    Config {
-        network: NetworkConfig { 
-            update_port: config_file.network["updatePorts"][elevnum as usize], 
-            command_port: config_file.network["commandPorts"][elevnum as usize],
-        },
-        server: ServerConfig { 
-            port: serverport,
-        },
-        settings: ElevatorSettings { 
-            num_floors: config_file.settings["numFloors"], 
-            num_buttons: config_file.settings["numButtons"],
-        },
+impl Config {
+    pub fn get() -> Self {
+        let file_path = "config.json";
+        let fallback_file_path = "_config.json";
+        let config_contents = match fs::read_to_string(file_path) {
+            Ok(content) => content,
+            Err(_) => {
+                println!("No configuration file provided, using default settings...");
+                fs::read_to_string(fallback_file_path).unwrap()
+            },
+        };
+        let config_file: ConfigFile = serde_json::from_str(&config_contents).unwrap();
+        let (elevnum, serverport) = parse_env_args(config_file.server["port"]);
+        
+        Config {
+            network: NetworkConfig { 
+                update_port: config_file.network["updatePorts"][elevnum as usize], 
+                command_port: config_file.network["commandPorts"][elevnum as usize],
+            },
+            server: ServerConfig { 
+                port: serverport,
+            },
+            settings: ElevatorSettings { 
+                num_floors: config_file.settings["numFloors"], 
+            },
+        }
     }
 }
 
