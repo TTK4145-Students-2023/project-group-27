@@ -3,11 +3,17 @@ use std::collections::HashMap;
 use std::env;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
+pub struct HRAConfigFile {
+    exec_folder_path: String,
+    operating_systems: HashMap<String, String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct ConfigFile {
     pub network: HashMap<String, Vec<u16>>,
     pub server: HashMap<String, u16>,
     pub elevator: HashMap<String, u8>,
-    pub hall_request_assigner: HashMap<String, String>,
+    pub hall_request_assigner: HRAConfigFile,
 }
 
 #[derive(Debug, Clone)]
@@ -117,7 +123,9 @@ pub struct MasterConfig {
 impl MasterConfig {
     pub fn get() -> Self {
         let config_file = read_config_file().unwrap();
-        
+        let exec_path = config_file.hall_request_assigner.exec_folder_path.clone()
+            + &config_file.hall_request_assigner.operating_systems[env::consts::OS];
+
         MasterConfig {
             network: MasterNetworkConfig { 
                 update_ports: config_file.network["update_ports"].to_vec(),
@@ -127,7 +135,7 @@ impl MasterConfig {
                 num_floors: config_file.elevator["num_floors"], 
             },
             hall_request_assigner: HallRequestAssignerConfig { 
-                exec_path: config_file.hall_request_assigner["exec_path"].clone(),
+                exec_path: exec_path,
             }
         }
     }

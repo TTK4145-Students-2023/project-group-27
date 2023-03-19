@@ -5,8 +5,6 @@ Cargo.lock
 # PLATFORM SPECIFIC FILES
 SimElevatorServer*
 simulator.con
-**/hall_request_assigner
-**/hall_request_assigner.exe
 
 # CONFIG
 **/config.json

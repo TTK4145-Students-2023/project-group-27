@@ -10,6 +10,11 @@
         "num_floors": 4
     },
     "hall_request_assigner": {
-        "exec_path": "hall_request_assigner"
+        "exec_folder_path": "hra_execs/",
+        "operating_systems": {
+            "linux": "hall_request_assigner",
+            "macos": "hall_request_assigner_macos",
+            "windows": "hall_request_assigner.exe"
+        }
     }
 }
