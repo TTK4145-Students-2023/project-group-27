@@ -14,21 +14,12 @@ use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
 use network_rust::udpnet;
 
 use shared_resources::config::{ElevatorConfig, NetworkConfig};
-use shared_resources::elevator_behaviour::ElevatorBehaviour;
-use shared_resources::request_buffer::RequestBuffer;
 use shared_resources::request::Request;
 use shared_resources::elevator_message::ElevatorMessage;
 
+use crate::utilities::request_buffer::RequestBuffer;
+use crate::utilities::elevator_behaviour::ElevatorBehaviour;
 use crate::utilities::master_message::MasterMessage;
-
-fn get_id() -> String {
-    let local_ip = net::TcpStream::connect("8.8.8.8:53")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .ip();
-    format!("{}#{}",local_ip, process::id())
-}
 
 pub fn main(
     elevator_settings: ElevatorConfig,
@@ -82,7 +73,7 @@ pub fn main(
                 // remove timed out orders
                 hall_request_buffer.remove_timed_out_orders();
                 // send state and collected orders to master
-                let message = ElevatorMessage::new(
+                let message = generate_elevator_message(
                     id.clone(),
                     elevator_behaviour.clone(),
                     &hall_request_buffer
@@ -92,3 +83,29 @@ pub fn main(
         }
     }
 }
+
+fn get_id() -> String {
+    let local_ip = net::TcpStream::connect("8.8.8.8:53")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .ip();
+    format!("{}#{}",local_ip, process::id())
+}
+
+pub fn generate_elevator_message(
+    id: String, 
+    elevator_behaviour: ElevatorBehaviour, 
+    request_buffer: &RequestBuffer
+) -> ElevatorMessage {
+    ElevatorMessage {
+        id: id,
+        behaviour: elevator_behaviour.behaviour.as_string(),
+        floor: elevator_behaviour.floor,
+        direction: elevator_behaviour.direction.as_string().unwrap(),
+        cab_requests: elevator_behaviour.requests.get_cab_requests(),
+        new_hall_orders: request_buffer.get_new_requests(),
+        served_hall_orders: request_buffer.get_served_requests(),
+    }
+}
+

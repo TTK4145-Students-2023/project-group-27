@@ -1,7 +1,8 @@
-use super::request::Request;
-use super::requests::Requests;
-use super::direction::Direction;
-use super::call::Call;
+use shared_resources::request::Request;
+use shared_resources::call::Call;
+
+use crate::utilities::direction::Direction;
+use crate::utilities::requests::Requests;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum Behaviour {

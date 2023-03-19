@@ -2,7 +2,7 @@ use std::io::{stdout, Stdout, Write};
 
 use crossterm::{cursor, terminal, Result, ExecutableCommand};
 
-use shared_resources::elevator_behaviour::ElevatorBehaviour;
+use crate::utilities::elevator_behaviour::ElevatorBehaviour;
 
 const STATUS_SIZE: u16 = 24;
 

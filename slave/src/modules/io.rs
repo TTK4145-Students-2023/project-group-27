@@ -10,9 +10,10 @@ use crossbeam_channel::{unbounded, Sender, Receiver};
 use driver_rust::elevio::{poll, elev};
 
 use shared_resources::config;
-use shared_resources::direction::Direction;
 use shared_resources::call::Call;
 use shared_resources::request::Request;
+
+use crate::utilities::direction::Direction;
 
 pub fn init(
     server_config: config::ServerConfig,

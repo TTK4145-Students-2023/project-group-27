@@ -1,5 +1,6 @@
-use super::call::Call;
-use super::direction::Direction;
+use shared_resources::call::Call;
+
+use crate::utilities::direction::Direction;
 
 #[derive(Clone)]
 pub struct Requests {

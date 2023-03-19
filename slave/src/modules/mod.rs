@@ -4,10 +4,10 @@ use crossbeam_channel::{select, unbounded};
 
 use crate::utilities::debug::Debug;
 
-pub mod doors;
-pub mod io;
-pub mod fsm;
-pub mod network;
+mod doors;
+mod io;
+mod fsm;
+mod network;
 
 pub fn run() -> std::io::Result<()> {
     // READ CONFIGURATION
