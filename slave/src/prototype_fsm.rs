@@ -12,7 +12,7 @@ enum Behavior {
     DoorOpen,
 }
 
-#[derive(Clone, Debug)] // As for now, the CallButton does not have clone trait, so use as_ref() as for now.
+#[derive(Clone, Debug)]
 pub struct ElevatorStatus {
     pub orders: Vec<Vec<bool>>,
     pub behavior: String,
@@ -26,7 +26,6 @@ pub struct HallRequests {
     pub all_requests: Vec<[bool; 2]>
 }
 
-// --- Functions ---
 fn should_stop(
     n_floors: u8,
     orders: &Vec<Vec<bool>>,
@@ -89,7 +88,7 @@ fn next_direction(
     elev::DIRN_STOP
 }
 
-fn update_orders(
+fn update_hall_orders(
     n_floors: u8,
     n_buttons: u8,
     hall_requests: HallRequests,
@@ -108,13 +107,20 @@ fn update_orders(
     orders
 }
 
-// --- Functions ---
+fn update_cab_requests(
+    orders: &Vec<Vec<bool>>,
+    n_floors: u8
+) -> Vec<bool> {
+    let mut cab_requests = vec![false; n_floors as usize];
+    for floor in 0..n_floors {
+        cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
+    }
+    cab_requests
+}
 
-pub fn main(
+pub fn main (
     elevator_settings: ElevatorSettings,
     cab_button_rx: Receiver<poll::CallButton>, // From io
-    //our_hall_requests_rx: Receiver<Vec<[bool; 2]>>, // From network
-    //all_hall_requests_rx: Receiver<Vec<[bool; 2]>>, // From network
     hall_requests_rx: Receiver<HallRequests>, //From network
     doors_closing_rx: Receiver<bool>, // From doors
     floor_sensor_rx: Receiver<u8>, // From io
@@ -124,10 +130,8 @@ pub fn main(
     motor_direction_tx: Sender<u8>, // To io
     floor_indicator_tx: Sender<u8>, // To io
     cleared_request_tx: Sender<poll::CallButton>, // To network
-    // orders_tx: Sender<Vec<Vec<bool>>>, // To debug
-    // elevator_state_tx: Sender<(String,u8,u8)>, // To network
     elevator_status_tx: Sender<ElevatorStatus> // To network & debug
-) {
+) -> std::io::Result<()> {
 
     let timer = tick(Duration::from_secs_f64(0.1));
     let n_buttons = elevator_settings.num_buttons;
@@ -138,110 +142,86 @@ pub fn main(
     let mut behavior: Behavior = Behavior::Moving;
     let mut orders = vec![vec![false; n_buttons as usize]; n_floors as usize];
     let mut cab_requests = vec![false; n_floors as usize];
+    let mut destination: u8;
 
     // CLEAR ALL LIGHTS
     for floor in 0..n_floors {
         for btn in elev::HALL_UP..=elev::CAB {
-            button_light_tx.send((floor, btn, false)).unwrap();
+            button_light_tx.send((floor, btn, false)).unwrap(); //Would it be nice to rather send a matrix to IO and then do the for looping at IO?
         }
     }
 
     loop {
         select! {
-            recv(cab_button_rx) -> msg => {
+            recv(cab_button_rx) -> cb_msg => {
+                destination = cb_msg.as_ref().unwrap().floor;
                 match behavior {
                     Behavior::Idle => {
-                        if floor == msg.as_ref().unwrap().floor {
+                        if floor == destination {
                             behavior = Behavior::DoorOpen;
                             doors_activate_tx.send(true).unwrap();
                         }
                         else {
-                            let destination = msg.as_ref().unwrap().floor;
-                            // --- Consider turning this part into a function
                             orders[destination as usize][elev::CAB as usize] = true;
                             button_light_tx.send((destination, elev::CAB, true)).unwrap();
-                            for floor in 0..n_floors {
-                                cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
-                            }
-                            cab_requests_tx.send(cab_requests.clone()).unwrap();
+                            cab_requests = update_cab_requests(&orders,n_floors);
                         }
                     },
                     Behavior::Moving => {
-                        let destination = msg.as_ref().unwrap().floor;
-                        // --- Consider turning this part into a function
                         orders[destination as usize][elev::CAB as usize] = true;
                         button_light_tx.send((destination, elev::CAB, true)).unwrap();
-                        for floor in 0..n_floors {
-                            cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
-                        }
-                        cab_requests_tx.send(cab_requests.clone()).unwrap();
-                        // This cab order vector can be unpacked at network instead of here
-                        // --- or a method to a struct
+                        cab_requests = update_cab_requests(&orders,n_floors);
                     },
                     Behavior::DoorOpen => {
-                        if floor == msg.as_ref().unwrap().floor {
+                        if floor == destination {
                             doors_activate_tx.send(true).unwrap();
                         }
                         else {
-                            let destination = msg.as_ref().unwrap().floor;
-                            // --- Consider turning this part into a function
                             orders[destination as usize][elev::CAB as usize] = true;
                             button_light_tx.send((destination, elev::CAB, true)).unwrap();
-                            for floor in 0..n_floors {
-                                cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
-                            }
-                            cab_requests_tx.send(cab_requests.clone()).unwrap();
+                            cab_requests = update_cab_requests(&orders,n_floors);
                         }
                     },
                 }
             },
-            recv(hall_requests_rx) -> msg => { // Not prioritized, since this is for debug
-                // --- Consider turning this part into a function
-                let all_requests = msg.clone().unwrap().all_requests;
-                let our_requests = msg.clone().unwrap().our_requests;
+            recv(hall_requests_rx) -> hr_msg => {
+                let all_requests = hr_msg.clone().unwrap().all_requests;
+                let our_requests = hr_msg.clone().unwrap().our_requests;
                 match behavior {
                     Behavior::Moving => {
-                        //orders = update_orders(n_floors, n_buttons, msg.clone().unwrap(), button_light_tx.clone());
-                        for f in 0..n_floors {
-                            for b in elev::HALL_UP..=elev::HALL_DOWN {
-                                button_light_tx.send((f, b, all_requests[f as usize][b as usize])).unwrap();
-                                orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
-                            }
-                        }
+                        orders = update_hall_orders(n_floors, n_buttons, hr_msg.unwrap(), button_light_tx.clone());
                     },
                     _ => {
                         for f in 0..n_floors {
                             for b in elev::HALL_UP..=elev::HALL_DOWN {
-                                if our_requests[f as usize][b as usize] && f == floor {
-                                    if !further_requests_in_direction(n_floors, &orders, floor, direction)
-                                    || cab_requests[f as usize] == orders[f as usize][b as usize] {
-                                        behavior = Behavior::DoorOpen;
-                                        doors_activate_tx.send(true).unwrap();
-                                        button_light_tx.send((floor, elev::CAB, false)).unwrap();
-                                        orders[f as usize][b as usize] = false;
-                                        cleared_request_tx.send(poll::CallButton {
-                                        floor: f,
-                                        call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
+                                if (our_requests[f as usize][b as usize] && f == floor) 
+                                && (!further_requests_in_direction(n_floors, &orders, floor, direction) 
+                                || cab_requests[f as usize] == orders[f as usize][b as usize]) {
+                                    behavior = Behavior::DoorOpen;
+                                    doors_activate_tx.send(true).unwrap();
+                                    button_light_tx.send((floor, elev::CAB, false)).unwrap();
+                                    orders[f as usize][b as usize] = false;
+                                    cab_requests[f as usize] = false;
+                                    cleared_request_tx.send(poll::CallButton {
+                                    floor: f,
+                                    call: if direction == elev::DIRN_UP { elev::HALL_UP } else { elev::HALL_DOWN },
                                     }).unwrap();
-                                        cleared_request_tx.send(poll::CallButton {
-                                            floor: floor,
-                                            call: if direction == elev::DIRN_UP { elev::HALL_DOWN } else { elev::HALL_UP },
-                                        }).unwrap();
-                                    }
-                                    /* Keep door open if elevator gets an order it already is at without sending further. */
+                                    cleared_request_tx.send(poll::CallButton {
+                                        floor: floor,
+                                        call: if direction == elev::DIRN_UP { elev::HALL_DOWN } else { elev::HALL_UP },
+                                    }).unwrap();
                                 }
                                 else {
                                     button_light_tx.send((f, b, all_requests[f as usize][b as usize])).unwrap();
                                     orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
                                 }
-                            }
+                            }   
                         }
-                    },
+                    }
                 }
-                // --- or a method to the struct
             },
-            recv(floor_sensor_rx) -> msg => {
-                floor = msg.unwrap();
+            recv(floor_sensor_rx) -> fs_msg => {
+                floor = fs_msg.unwrap();
                 floor_indicator_tx.send(floor).unwrap();
                 match behavior {
                     Behavior::Moving => {
@@ -264,7 +244,7 @@ pub fn main(
                             }
                         }
                     },
-                    _ => (), // This case should not be possible as a still elevator does not reach a new floor
+                    _ => panic!("new floor was reached even tough elevator was not moving"), // This case should not be possible as a still elevator does not reach a new floor
                 }
             },
             recv(doors_closing_rx) -> _ => {
@@ -272,7 +252,7 @@ pub fn main(
                     Behavior::DoorOpen => {
                         behavior = Behavior::Idle;
                     },
-                    _ => (),
+                    _ => panic!("doors were closing even though it was not open"), // Should not be possible to recieve this while open
                 }
             },
             recv(timer) -> _ => {
@@ -295,19 +275,18 @@ pub fn main(
             },
         }
 
-        // This part is run to get the latest update of states, no matter which recv() was used.
         let behavior_str = match behavior {
             Behavior::Idle => "idle",
             Behavior::Moving => "moving",
             Behavior::DoorOpen => "doorOpen",
-        }; // State is converted to string such that we don't need the state enum dependency at "network"
-        // And also, the string is needed for the hall request assigner. 
-
+        };
         elevator_status_tx.send(ElevatorStatus {
             orders: orders.clone(),
             behavior: String::from(behavior_str),
-            floor, // This one is presumed to be the same as the one above
+            floor,
             direction,
         }).unwrap();
+
+        cab_requests_tx.send(cab_requests.clone()).unwrap();
     }
 }

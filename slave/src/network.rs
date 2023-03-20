@@ -4,7 +4,7 @@
 /// parses messages from the master node and distributes this elevator's orders
 /// to the requests node.
 
-use std::thread::spawn;
+use std::thread;
 use std::net;
 use std::process;
 use std::collections::HashMap;
@@ -122,24 +122,24 @@ pub fn main(
     // our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
     // all_hall_requests_tx: Sender<Vec<[bool; 2]>>
     hall_requests_tx: Sender<HallRequests>
-) {
+) -> std::io::Result<()> {
     let update_master = tick(Duration::from_secs_f64(0.1));
 
     const TIMEOUT: u64 = 5;
 
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
-    spawn(move || {
+    thread::Builder::new().name("udp_tx".to_string()).spawn(move || {
         if udpnet::bcast::tx(network_config.update_port, elevator_message_rx).is_err() {
             process::exit(1);
         }
-    });
+    }).ok();
     
     let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<[bool; 2]>>>();
-    spawn(move || {
+    thread::Builder::new().name("udp_tx".to_string()).spawn(move || {
         if udpnet::bcast::rx(network_config.command_port, command_tx).is_err() {
             process::exit(1);
         }
-    });
+    }).ok();
     
     let id = get_id();
     
