@@ -89,11 +89,12 @@ fn next_direction(
 }
 
 fn update_hall_orders(
-    orders: &mut Vec<Vec<bool>>,
     n_floors: u8,
+    n_buttons: u8,
     hall_requests: HallRequests,
     button_light_tx: Sender<(u8,u8,bool)>
-) {
+) -> Vec<Vec<bool>> {
+    let mut orders = vec![vec![false; n_buttons as usize]; n_floors as usize];
     let our_requests = hall_requests.our_requests;
     let all_requests = hall_requests.all_requests;
 
@@ -103,13 +104,14 @@ fn update_hall_orders(
             orders[f as usize][b as usize] = our_requests[f as usize][b as usize];
         }
     }
+    orders
 }
 
 fn update_cab_requests(
     orders: &Vec<Vec<bool>>,
     n_floors: u8
 ) -> Vec<bool> {
-    let mut cab_requests = vec![true; n_floors as usize];
+    let mut cab_requests = vec![false; n_floors as usize];
     for floor in 0..n_floors {
         cab_requests[floor as usize] = orders[floor as usize][elev::CAB as usize];
     }
@@ -154,33 +156,21 @@ pub fn main (
             recv(cab_button_rx) -> cb_msg => {
                 destination = cb_msg.as_ref().unwrap().floor;
                 match behavior {
-                    Behavior::Idle => {
-                        if floor == destination {
-                            behavior = Behavior::DoorOpen;
-                            doors_activate_tx.send(true).unwrap();
-                        }
-                        else {
-                            orders[destination as usize][elev::CAB as usize] = true;
-                            button_light_tx.send((destination, elev::CAB, true)).unwrap();
-                            cab_requests = update_cab_requests(&orders,n_floors);
-                            cab_requests_tx.send(cab_requests.clone()).unwrap();
-                        }
-                    },
                     Behavior::Moving => {
                         orders[destination as usize][elev::CAB as usize] = true;
                         button_light_tx.send((destination, elev::CAB, true)).unwrap();
                         cab_requests = update_cab_requests(&orders,n_floors);
-                        cab_requests_tx.send(cab_requests.clone()).unwrap();
                     },
-                    Behavior::DoorOpen => {
+                    _ => {
                         if floor == destination {
+                            behavior = Behavior::DoorOpen
                             doors_activate_tx.send(true).unwrap();
+                            
                         }
                         else {
                             orders[destination as usize][elev::CAB as usize] = true;
                             button_light_tx.send((destination, elev::CAB, true)).unwrap();
                             cab_requests = update_cab_requests(&orders,n_floors);
-                            cab_requests_tx.send(cab_requests.clone()).unwrap();
                         }
                     },
                 }
@@ -190,13 +180,14 @@ pub fn main (
                 let our_requests = hr_msg.clone().unwrap().our_requests;
                 match behavior {
                     Behavior::Moving => {
-                        update_hall_orders(&mut orders, n_floors, hr_msg.unwrap(), button_light_tx.clone());
+                        orders = update_hall_orders(n_floors, n_buttons, hr_msg.unwrap(), button_light_tx.clone());
                     },
                     _ => {
                         for f in 0..n_floors {
                             for b in elev::HALL_UP..=elev::HALL_DOWN {
-                                if our_requests[f as usize][b as usize] && f == floor 
-                                && !further_requests_in_direction(n_floors, &orders, floor, direction) {
+                                if (our_requests[f as usize][b as usize] && f == floor) 
+                                && (!further_requests_in_direction(n_floors, &orders, floor, direction) 
+                                || cab_requests[f as usize] == orders[f as usize][b as usize]) {
                                     behavior = Behavior::DoorOpen;
                                     doors_activate_tx.send(true).unwrap();
                                     button_light_tx.send((floor, elev::CAB, false)).unwrap();
@@ -285,6 +276,6 @@ pub fn main (
             direction,
         }).unwrap();
 
-        
+        cab_requests_tx.send(cab_requests.clone()).unwrap();
     }
 }
