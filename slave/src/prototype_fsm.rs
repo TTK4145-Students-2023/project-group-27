@@ -163,7 +163,7 @@ pub fn main (
                     },
                     _ => {
                         if floor == destination {
-                            behavior = Behavior::DoorOpen
+                            behavior = Behavior::DoorOpen;
                             doors_activate_tx.send(true).unwrap();
                             
                         }
