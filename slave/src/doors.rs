@@ -12,7 +12,7 @@ pub fn main(
     doors_activate_rx: Receiver<bool>,
     doors_closing_tx: Sender<bool>, 
     door_light_tx: Sender<bool>
-) {
+) -> std::io::Result<()> {
     const TIMER_DURATION: f64 = 3.0;
     let mut active: bool = false;
 
