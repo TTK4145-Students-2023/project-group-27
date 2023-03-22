@@ -12,7 +12,7 @@ use shared_resources::call::Call;
 use shared_resources::request::Request;
 
 use crate::utilities::direction::Direction;
-use crate::utilities::elevator_behaviour::{ElevatorBehaviour, Behaviour};
+use crate::utilities::elevator_status::{ElevatorStatus, Behaviour};
 use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
@@ -25,23 +25,39 @@ pub fn main(
     cab_button_rx: Receiver<u8>,
     motor_direction_tx: Sender<Direction>,
     master_hall_requests_rx: Receiver<MasterMessage>,
-    elevator_behaviour_tx: Sender<ElevatorBehaviour>,
+    elevator_status_tx: Sender<ElevatorStatus>,
 ) {
     let timer = tick(Duration::from_secs_f64(0.25));
 
     let num_floors = elevator_settings.num_floors;
-    let mut elevator_behaviour = ElevatorBehaviour::new(num_floors);
+    let mut elevator = ElevatorStatus::new(num_floors);
 
     loop {
         select! {
             recv(cab_button_rx) -> msg => {
-                let floor = msg.unwrap();
-                elevator_behaviour.requests.add_order(floor, Call::Cab);
-                button_light_tx.send((Request{ floor: floor, call: Call::Cab }, true)).unwrap();
+                let destination = msg.unwrap();
+                elevator.behaviour = match elevator.behaviour {
+                    Behaviour::Moving => {
+                        elevator.requests.add_order(destination, Call::Cab);
+                        button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
+                        elevator.behaviour
+                    },
+                    Behaviour::Idle | Behaviour::DoorOpen => {
+                        if elevator.floor == destination {
+                            doors_activate_tx.send(true).unwrap();
+                            Behaviour::DoorOpen
+                        }
+                        else {
+                            elevator.requests.add_order(destination, Call::Cab);
+                            button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
+                            elevator.behaviour
+                        }
+                    },
+                }
             },
             recv(master_hall_requests_rx) -> msg => {
                 let message = msg.unwrap();
-                elevator_behaviour.requests.update_hall_requests(message.our_hall_requests);
+                elevator.requests.update_hall_requests(message.our_hall_requests);
                 for floor in 0..num_floors {
                     for call in Call::iter_hall() {
                         button_light_tx.send((
@@ -52,57 +68,57 @@ pub fn main(
                 }
             },
             recv(floor_sensor_rx) -> msg => {
-                elevator_behaviour.floor = msg.unwrap();
-                floor_indicator_tx.send(elevator_behaviour.floor).unwrap();
-                if elevator_behaviour.should_stop() {
-                    elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                elevator.floor = msg.unwrap();
+                floor_indicator_tx.send(elevator.floor).unwrap();
+                if elevator.should_stop() {
+                    elevator.behaviour = match elevator.behaviour {
                         Behaviour::Idle | Behaviour::Moving => {
                             motor_direction_tx.send(Direction::Stop).unwrap();
                             doors_activate_tx.send(true).unwrap();
-                            elevator_behaviour.serve_requests_here();
-                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
+                            elevator.serve_requests_here();
+                            button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
                             Behaviour::DoorOpen
                         },
-                        Behaviour::DoorOpen => elevator_behaviour.behaviour,
+                        Behaviour::DoorOpen => elevator.behaviour,
                     }
                 }
             },
             recv(doors_closing_rx) -> _ => {
-                elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                elevator.behaviour = match elevator.behaviour {
                     Behaviour::DoorOpen => Behaviour::Idle,
-                    Behaviour::Idle | Behaviour::Moving => elevator_behaviour.behaviour,
+                    Behaviour::Idle | Behaviour::Moving => elevator.behaviour,
                 }
             },
             recv(timer) -> _ => {
-                elevator_behaviour.behaviour = match elevator_behaviour.behaviour {
+                elevator.behaviour = match elevator.behaviour {
                     Behaviour::Idle => {
-                        let next_direction = elevator_behaviour.next_direction();
+                        let next_direction = elevator.next_direction();
                         if next_direction.is_some() {
                             motor_direction_tx.send(next_direction.unwrap()).unwrap();
-                            elevator_behaviour.direction = next_direction.unwrap();
+                            elevator.direction = next_direction.unwrap();
                             Behaviour::Moving
-                        } else if elevator_behaviour.current_floor_has_requests()
-                            && elevator_behaviour.should_stop() {
+                        } else if elevator.current_floor_has_requests()
+                            && elevator.should_stop() {
                             doors_activate_tx.send(true).unwrap();
-                            elevator_behaviour.serve_requests_here();
-                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
+                            elevator.serve_requests_here();
+                            button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
                             Behaviour::DoorOpen
                         } else {
-                            elevator_behaviour.behaviour
+                            elevator.behaviour
                         }
                     },
                     Behaviour::DoorOpen => {
-                        if elevator_behaviour.current_floor_has_requests() {
-                            doors_activate_tx.send(true).unwrap();
-                            elevator_behaviour.serve_requests_here();
-                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
-                        }
+                        //if elevator.current_floor_has_requests() {
+                        //    doors_activate_tx.send(true).unwrap();
+                        //    elevator.serve_requests_here();
+                        //    button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
+                        //}
                         Behaviour::DoorOpen
                     },
-                    Behaviour::Moving => elevator_behaviour.behaviour,
+                    Behaviour::Moving => elevator.behaviour,
                 }
             }
         }
-        elevator_behaviour_tx.send(elevator_behaviour.clone()).unwrap();
+        elevator_status_tx.send(elevator.clone()).unwrap();
     }
 }

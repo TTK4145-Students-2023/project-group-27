@@ -18,7 +18,7 @@ use shared_resources::request::Request;
 use shared_resources::elevator_message::ElevatorMessage;
 
 use crate::utilities::request_buffer::RequestBuffer;
-use crate::utilities::elevator_behaviour::ElevatorBehaviour;
+use crate::utilities::elevator_status::ElevatorStatus;
 use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
@@ -26,7 +26,7 @@ pub fn main(
     network_config: NetworkConfig,
     hall_button_rx: Receiver<Request>,
     master_hall_requests_tx: Sender<MasterMessage>,
-    elevator_behaviour_rx: Receiver<ElevatorBehaviour>,
+    elevator_status_rx: Receiver<ElevatorStatus>,
 ) {
     let update_master = tick(Duration::from_secs_f64(0.1));
 
@@ -50,7 +50,7 @@ pub fn main(
     let num_floors = elevator_settings.num_floors;
 
     let mut hall_request_buffer = RequestBuffer::new(TIMEOUT);
-    let mut elevator_behaviour = ElevatorBehaviour::new(num_floors);
+    let mut elevator_behaviour = ElevatorStatus::new(num_floors);
     
     loop {
         select! {
@@ -65,7 +65,7 @@ pub fn main(
                 // append new hall order to queue
                 hall_request_buffer.insert_new_request(hall_request.unwrap());
             },
-            recv(elevator_behaviour_rx) -> elevator_behaviour_msg => {
+            recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
                 hall_request_buffer.insert_served_requests(elevator_behaviour.pop_served_requests());
             } 
@@ -95,7 +95,7 @@ fn get_id() -> String {
 
 pub fn generate_elevator_message(
     id: String, 
-    elevator_behaviour: ElevatorBehaviour, 
+    elevator_behaviour: ElevatorStatus, 
     request_buffer: &RequestBuffer
 ) -> ElevatorMessage {
     ElevatorMessage {

@@ -2,7 +2,7 @@ use std::io::{stdout, Stdout, Write};
 
 use crossterm::{cursor, terminal, Result, ExecutableCommand};
 
-use crate::utilities::elevator_behaviour::ElevatorBehaviour;
+use crate::utilities::elevator_status::ElevatorStatus;
 
 const STATUS_SIZE: u16 = 24;
 
@@ -19,7 +19,7 @@ impl Debug {
         }
     }
 
-    pub fn printstatus(&mut self, elevator_behaviour: &ElevatorBehaviour) -> Result<()> {
+    pub fn printstatus(&mut self, elevator_behaviour: &ElevatorStatus) -> Result<()> {
         self.stdout.execute(cursor::MoveUp(STATUS_SIZE))?;
         self.stdout.execute(terminal::Clear(terminal::ClearType::FromCursorDown))?;
     

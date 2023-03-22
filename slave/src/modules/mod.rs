@@ -17,7 +17,7 @@ pub fn run() -> std::io::Result<()> {
     let (doors_activate_tx, doors_activate_rx) = unbounded();
     let (doors_closing_tx, doors_closing_rx) = unbounded();
     let (master_hall_requests_tx, master_hall_requests_rx) = unbounded();
-    let (elevator_behaviour_tx, elevator_behaviour_rx) = unbounded();
+    let (elevator_status_tx, elevator_status_rx) = unbounded();
 
     // INITIALIZE INPUTS MODULE
     let (
@@ -56,20 +56,20 @@ pub fn run() -> std::io::Result<()> {
             cab_button_rx,
             motor_direction_tx,
             master_hall_requests_rx,
-            elevator_behaviour_tx,
+            elevator_status_tx,
         ));
     }
 
     // INITIALIZE NETWORK MODULE
     {
         let elevator_settings = config.elevator.clone();
-        let elevator_behaviour_rx = elevator_behaviour_rx.clone();
+        let elevator_status_rx = elevator_status_rx.clone();
         thread::spawn(move || network::main(
             elevator_settings,
             config.network,
             hall_button_rx,
             master_hall_requests_tx,
-            elevator_behaviour_rx,
+            elevator_status_rx,
         ));
     }
 
@@ -78,7 +78,7 @@ pub fn run() -> std::io::Result<()> {
 
     loop {
         select! {
-            recv(elevator_behaviour_rx) -> msg => {
+            recv(elevator_status_rx) -> msg => {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> _ => {

@@ -22,7 +22,7 @@ impl Behaviour {
 }
 
 #[derive(Clone)]
-pub struct ElevatorBehaviour {
+pub struct ElevatorStatus {
     pub requests: Requests,
     pub behaviour: Behaviour,
     pub floor: u8,
@@ -30,9 +30,9 @@ pub struct ElevatorBehaviour {
     served_requests: Vec<Request>,
 }
 
-impl ElevatorBehaviour {
+impl ElevatorStatus {
     pub fn new(num_floors: u8) -> Self {
-        ElevatorBehaviour { 
+        ElevatorStatus { 
             requests: Requests::new(num_floors), 
             behaviour: Behaviour::Moving, 
             floor: 0, 
