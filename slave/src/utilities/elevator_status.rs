@@ -4,7 +4,7 @@ use shared_resources::call::Call;
 use crate::utilities::direction::Direction;
 use crate::utilities::requests::Requests;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq, Debug, Clone)]
 pub enum Behaviour {
     Idle,
     Moving,
@@ -21,7 +21,7 @@ impl Behaviour {
     }
 }
 
-#[derive(Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ElevatorStatus {
     pub requests: Requests,
     pub behaviour: Behaviour,
@@ -44,6 +44,7 @@ impl ElevatorStatus {
     pub fn serve_requests_here(&mut self) {
         self.requests.clear_cab_request(self.floor);
         self.served_requests.clear();
+        //self.served_requests = Vec::new()
         self.served_requests.push(Request {
             floor: self.floor,
             call: if self.direction == Direction::Up { Call::HallUp } else { Call::HallDown },

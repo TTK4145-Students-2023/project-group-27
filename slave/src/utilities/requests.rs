@@ -2,7 +2,7 @@ use shared_resources::call::Call;
 
 use crate::utilities::direction::Direction;
 
-#[derive(Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Requests {
     requests: Vec<Vec<bool>>,
     num_floors: u8,

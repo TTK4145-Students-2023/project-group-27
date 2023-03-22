@@ -4,6 +4,7 @@
 /// on these.
 
 use std::time::Duration;
+use std::thread;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
 
@@ -16,6 +17,8 @@ use crate::utilities::elevator_status::{ElevatorStatus, Behaviour};
 use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
+    backup_data: ElevatorStatus,
+    custom_data_send_tx: Sender<ElevatorStatus>,
     elevator_settings: ElevatorConfig,
     floor_sensor_rx: Receiver<u8>,
     floor_indicator_tx: Sender<u8>,
@@ -30,7 +33,7 @@ pub fn main(
     let timer = tick(Duration::from_secs_f64(0.25));
 
     let num_floors = elevator_settings.num_floors;
-    let mut elevator = ElevatorStatus::new(num_floors);
+    let mut elevator = backup_data.clone();
 
     loop {
         select! {
@@ -120,5 +123,14 @@ pub fn main(
             }
         }
         elevator_status_tx.send(elevator.clone()).unwrap();
+
+        {
+            thread::Builder::new().name("backup_udp_sender".to_string()).spawn(move || {
+                loop {
+                    custom_data_send_tx.send(elevator.clone()).unwrap();
+                    thread::sleep(Duration::new(1, 0));
+                }
+            });
+        }
     }
 }
