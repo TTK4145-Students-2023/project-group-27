@@ -266,9 +266,7 @@ pub fn main (
                                 behavior = Behavior::Moving
                             },
                             _ => ()
-                            
                         }
-                        
                     },
                     _ => (),
                 }

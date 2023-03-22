@@ -15,8 +15,7 @@ use network_rust::udpnet;
 use driver_rust::elevio::{elev, poll};
 
 use crate::config::{ElevatorSettings, NetworkConfig};
-use crate::prototype_fsm::ElevatorStatus;
-use crate::prototype_fsm::HallRequests;
+use crate::prototype_fsm::{ElevatorStatus, HallRequests};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 pub struct HallOrder {
@@ -116,11 +115,8 @@ pub fn main(
     network_config: NetworkConfig,
     hall_button_rx: Receiver<poll::CallButton>,
     cleared_request_rx: Receiver<poll::CallButton>, 
-    //elevator_state_rx: Receiver<(String,u8,u8)>,
     elevator_status_rx: Receiver<ElevatorStatus>,
     cab_requests_rx: Receiver<Vec<bool>>,
-    // our_hall_requests_tx: Sender<Vec<[bool; 2]>>,
-    // all_hall_requests_tx: Sender<Vec<[bool; 2]>>
     hall_requests_tx: Sender<HallRequests>
 ) -> std::io::Result<()> {
     let update_master = tick(Duration::from_secs_f64(0.1));
@@ -135,7 +131,7 @@ pub fn main(
     }).ok();
     
     let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<[bool; 2]>>>();
-    thread::Builder::new().name("udp_tx".to_string()).spawn(move || {
+    thread::Builder::new().name("udp_rx".to_string()).spawn(move || {
         if udpnet::bcast::rx(network_config.command_port, command_tx).is_err() {
             process::exit(1);
         }
@@ -185,18 +181,6 @@ pub fn main(
 
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
 
-                // all_hall_requests_tx.send(all_hall_requests.clone()).unwrap();
-                
-                // // collect hall requests to be served from this elevator
-                // let our_hall_requests = match command.get(&id) {
-                //     Some(hr) => hr,
-                //     None => continue, // master does not yet know about this elevator -> discard message
-                // };
-                
-                // hall_order_buffer.remove_confirmed_orders(&all_hall_requests);
-
-                // // pass hall requests to requests module
-                // our_hall_requests_tx.send(our_hall_requests.clone()).unwrap();
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue

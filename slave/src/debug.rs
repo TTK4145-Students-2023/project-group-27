@@ -8,20 +8,17 @@ use crossbeam_channel::{Receiver, select};
 use crossterm::{cursor, terminal, Result, ExecutableCommand};
 use driver_rust::elevio::elev;
 
-use crate::{config::ElevatorSettings, prototype_fsm::ElevatorStatus};
+use crate::config::ElevatorSettings;
+use crate::prototype_fsm::ElevatorStatus;
 
 const STATUS_SIZE: u16 = 24;
 
 pub fn main(
     elevator_settings: ElevatorSettings,
-    //orders_rx: Receiver<Vec<Vec<bool>>>,
-    //elevator_state_rx: Receiver<(String, u8, u8)>,
     elevator_status_rx: Receiver<ElevatorStatus>
 ) -> Result<()> {
     let mut stdout = stdout();
 
-    // let mut status = (String::from("idle"), 0, 0);
-    // let mut orders = vec![vec![false; elevator_settings.num_buttons as usize]; elevator_settings.num_floors as usize];
 
     for _ in 0..STATUS_SIZE { writeln!(stdout, "")?; }
 
