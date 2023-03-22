@@ -28,7 +28,7 @@ pub fn main(
     master_hall_requests_tx: Sender<MasterMessage>,
     elevator_behaviour_rx: Receiver<ElevatorBehaviour>,
 ) {
-    let update_master = tick(Duration::from_secs_f64(0.25));
+    let update_master = tick(Duration::from_secs_f64(0.1));
 
     const TIMEOUT: u64 = 5;
 

@@ -87,11 +87,19 @@ pub fn main(
                             elevator_behaviour.serve_requests_here();
                             button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
                             Behaviour::DoorOpen
-                        }else {
+                        } else {
                             elevator_behaviour.behaviour
                         }
                     },
-                    Behaviour::Moving | Behaviour::DoorOpen => elevator_behaviour.behaviour,
+                    Behaviour::DoorOpen => {
+                        if elevator_behaviour.current_floor_has_requests() {
+                            doors_activate_tx.send(true).unwrap();
+                            elevator_behaviour.serve_requests_here();
+                            button_light_tx.send((Request { floor: elevator_behaviour.floor, call: Call::Cab }, false)).unwrap();
+                        }
+                        Behaviour::DoorOpen
+                    },
+                    Behaviour::Moving => elevator_behaviour.behaviour,
                 }
             }
         }
