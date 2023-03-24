@@ -72,9 +72,11 @@ impl Requests {
 
     pub fn next_direction(&self, floor: u8, last_direction: Direction) -> Option<Direction> {
         let other_direction = if last_direction == Direction::Up { Direction::Down } else { Direction::Up };
+        let other_hall_button = if last_direction == Direction::Up { Call::HallDown } else { Call::HallUp };
         if Self::further_requests_in_direction(self, floor, last_direction) {
             return Some(last_direction)
-        } else if Self::further_requests_in_direction(self, floor, other_direction) {
+        } else if Self::further_requests_in_direction(self, floor, other_direction)
+            || self.requests[floor as usize][other_hall_button as usize] {
             return Some(other_direction)
         }
         None

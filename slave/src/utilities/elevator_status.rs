@@ -25,7 +25,7 @@ impl Behaviour {
 pub struct ElevatorStatus {
     pub requests: Requests,
     pub behaviour: Behaviour,
-    pub floor: u8,
+    pub floor: u8,  
     pub direction: Direction,
     served_requests: Vec<Request>,
 }
@@ -50,12 +50,12 @@ impl ElevatorStatus {
             call: if self.direction == Direction::Up { Call::HallUp } else { Call::HallDown },
         });
         // if no further orders in direction -> the order in opposite direction is also served
-        if !self.requests.further_requests_in_direction(self.floor, self.direction) {
-            self.served_requests.push(Request {
-                floor: self.floor,
-                call: if self.direction == Direction::Up { Call::HallDown } else { Call::HallUp },
-            });
-        }
+        // if !self.requests.further_requests_in_direction(self.floor, self.direction) {
+        //     self.served_requests.push(Request {
+        //         floor: self.floor,
+        //         call: if self.direction == Direction::Up { Call::HallDown } else { Call::HallUp },
+        //     });
+        // }
     }
     
     pub fn pop_served_requests(&mut self) -> Vec<Request> {

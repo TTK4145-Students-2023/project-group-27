@@ -19,7 +19,7 @@ impl MasterMessage {
                 }
             }
         }
-        let empty_vec = vec![vec![false; Call::num_hall_calls() as usize]];
+        let empty_vec = vec![vec![false; Call::num_hall_calls() as usize]; num_floors as usize];
         let our_hall_requests = match message.get(&id) {
             Some(hr) => hr,
             None => &empty_vec, // master does not yet know about this elevator -> we're not assigned any requests

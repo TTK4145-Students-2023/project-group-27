@@ -55,7 +55,8 @@ pub fn main(
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
     let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; config.elevator.num_floors as usize];
-    
+    let mut output: HashMap<String, Vec<Vec<bool>>> = HashMap::new();
+
     loop {
         select! {
             recv(elevator_message_rx) -> msg => {
@@ -92,13 +93,12 @@ pub fn main(
                 for (id, data) in connected_elevators.clone() {
                     states.insert(id, data.state);
                 }
-                let output = match assign_orders(&hra_exec_path, hall_requests.clone(), states) {
+                output = match assign_orders(&hra_exec_path, hall_requests.clone(), states) {
                     Ok(result) => result,
                     Err(_) => continue, // give up and try again next time :)
                 };
 
                 // broadcast assigned orders
-                command_tx.send(output).unwrap();
 
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
             },
@@ -112,5 +112,6 @@ pub fn main(
                 connected_elevators_tx.send(connected_elevators.clone()).unwrap();
             }
         }
+        command_tx.send(output.clone()).unwrap();
     }
 }

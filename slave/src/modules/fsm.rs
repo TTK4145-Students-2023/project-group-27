@@ -4,6 +4,7 @@
 /// on these.
 
 use std::time::Duration;
+use std::panic;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
 
@@ -29,10 +30,15 @@ pub fn main(
     master_hall_requests_rx: Receiver<MasterMessage>,
     elevator_status_tx: Sender<ElevatorStatus>,
 ) {
-    let timer = tick(Duration::from_secs_f64(0.25));
+    let timer = tick(Duration::from_secs_f64(0.1));
 
     let num_floors = elevator_settings.num_floors;
     let mut elevator = backup_data;
+
+    if elevator.behaviour == Behaviour::Moving {
+        motor_direction_tx.send(elevator.direction).unwrap();
+    }
+    
 
     loop {
         select! {
@@ -81,7 +87,7 @@ pub fn main(
                             button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
                             Behaviour::DoorOpen
                         },
-                        Behaviour::DoorOpen => elevator.behaviour,
+                        Behaviour::DoorOpen => panic!("Impossible outcome"),
                     }
                 }
             },
@@ -96,15 +102,16 @@ pub fn main(
                     Behaviour::Idle => {
                         let next_direction = elevator.next_direction();
                         if next_direction.is_some() {
-                            motor_direction_tx.send(next_direction.unwrap()).unwrap();
                             elevator.direction = next_direction.unwrap();
-                            Behaviour::Moving
-                        } else if elevator.current_floor_has_requests()
-                            && elevator.should_stop() {
-                            doors_activate_tx.send(true).unwrap();
-                            elevator.serve_requests_here();
-                            button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
-                            Behaviour::DoorOpen
+                            if elevator.should_stop() {
+                                doors_activate_tx.send(true).unwrap();
+                                elevator.serve_requests_here();
+                                button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
+                                Behaviour::DoorOpen
+                            } else {
+                                motor_direction_tx.send(next_direction.unwrap()).unwrap();
+                                Behaviour::Moving
+                            }
                         } else {
                             elevator.behaviour
                         }
