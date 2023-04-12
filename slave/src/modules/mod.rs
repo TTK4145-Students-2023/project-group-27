@@ -17,7 +17,7 @@ mod fsm;
 mod network;
 
 fn backup(num_floors: u8, backup_port: u16) -> ElevatorStatus {
-    println!("BACKUP MODE\n------------");
+    println!("BACKUP MODE for port: {:#?}\n-----------------",backup_port);
     let mut backup_data: ElevatorStatus = ElevatorStatus::new(num_floors);
 
     let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
@@ -38,6 +38,7 @@ fn backup(num_floors: u8, backup_port: u16) -> ElevatorStatus {
             recv(backup_recv_rx) -> data => {
                 //backup_debug.printstatus(&data.clone().unwrap()).unwrap();
                 backup_data = data.unwrap();
+                
             },
             default(Duration::from_secs(2)) => {
                 break;
@@ -50,6 +51,8 @@ fn backup(num_floors: u8, backup_port: u16) -> ElevatorStatus {
 pub fn run() -> std::io::Result<()> {    
     // READ CONFIGURATION
     let config = shared_resources::config::SlaveConfig::get();
+
+    println!("elevnum: {}, serverport: {}", config.elevnum, config.server.port);
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
@@ -67,7 +70,12 @@ pub fn run() -> std::io::Result<()> {
                 .arg("cd ".to_owned()
                  + &program_path
                  + " && "
-                 + "cargo run")
+                 + "cargo run"
+                 + " --"
+                 + " --elevnum "
+                 + &config.elevnum.to_string()
+                 + " --serverport "
+                 + &config.server.port.to_string())
                 .output()
                 .expect("failed to start backup");
     } else if cfg!(target_os = "macOS") {
@@ -134,10 +142,11 @@ pub fn run() -> std::io::Result<()> {
     // INITIALIZE NETWORK MODULE
     {
         let elevator_settings = config.elevator.clone();
+        let network_config = config.network.clone();
         let elevator_status_rx = elevator_status_rx.clone();
         thread::Builder::new().name("network".to_string()).spawn(move || network::main(
             elevator_settings,
-            config.network,
+            network_config,
             hall_button_rx,
             master_hall_requests_tx,
             elevator_status_rx,
@@ -163,8 +172,21 @@ pub fn run() -> std::io::Result<()> {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> _ => {
-                println!("STOPPING PROGRAM...");
-                return Ok(())
+                println!("Applying packet loss!");
+                let exec_path = "packetloss";
+                let command = "sudo ./".to_owned() 
+                    + exec_path 
+                    + " -p " + &config.network.command_port.to_string()
+                    + "," + &config.network.update_port.to_string() 
+                    + " -r 0.95";
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(command)
+                    .output()
+                    .expect("failed to induce packetloss ");
+
+                //println!("STOPPING PROGRAM...");
+                //return Ok(())
             }
         }
     }

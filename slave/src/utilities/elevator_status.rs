@@ -42,7 +42,9 @@ impl ElevatorStatus {
     }
     
     pub fn serve_requests_here(&mut self) {
-        self.requests.clear_cab_request(self.floor);
+        self.requests.clear_request(Call::Cab, self.floor);
+        let call = if self.direction == Direction::Up { Call::HallUp } else { Call::HallDown };
+        self.requests.clear_request(call, self.floor);
         self.served_requests.clear();
         //self.served_requests = Vec::new()
         self.served_requests.push(Request {

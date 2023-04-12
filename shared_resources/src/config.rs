@@ -46,14 +46,14 @@ fn read_config_file() -> Result<ConfigFile, serde_json::Error> {
     serde_json::from_str(&config_contents)
 }
 
-fn parse_env_args(defaultport: u16) -> (u16, u16) {
+fn parse_env_args(defaultport: u16) -> (u8, u16) {
     let (mut elevnum, mut serverport) = (0, defaultport);
 
     let args: Vec<String> = env::args().collect();
     for arg_pair in args.rchunks_exact(2) {
         match arg_pair[0].as_str() {
             "--elevnum" => {
-                elevnum = match arg_pair[1].parse::<u16>() {
+                elevnum = match arg_pair[1].parse::<u8>() {
                     Ok(num) => num,
                     Err(_) => {
                         println!("elevnum {} is not a number, skipping...", arg_pair[1]);
@@ -78,6 +78,7 @@ fn parse_env_args(defaultport: u16) -> (u16, u16) {
 
 #[derive(Debug, Clone)]
 pub struct SlaveConfig {
+    pub elevnum: u8,
     pub network: NetworkConfig,
     pub server: ServerConfig,
     pub elevator: ElevatorConfig,
@@ -89,6 +90,7 @@ impl SlaveConfig {
         let (elevnum, serverport) = parse_env_args(config_file.server["port"]);
         
         SlaveConfig {
+            elevnum: elevnum,
             network: NetworkConfig { 
                 update_port: config_file.network["update_ports"][elevnum as usize], 
                 command_port: config_file.network["command_ports"][elevnum as usize],

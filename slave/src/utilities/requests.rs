@@ -16,12 +16,12 @@ impl Requests {
         }
     }
 
-    pub fn add_order(&mut self, floor: u8, call: Call) {
+    pub fn add_request(&mut self, floor: u8, call: Call) {
         self.requests[floor as usize][call as usize] = true;
     }
 
-    pub fn clear_cab_request(&mut self, floor: u8) {
-        self.requests[floor as usize][Call::Cab as usize] = false;
+    pub fn clear_request(&mut self, call: Call, floor: u8) {
+        self.requests[floor as usize][call as usize] = false;
     }
 
     pub fn update_hall_requests(&mut self, our_hall_requests: Vec<Vec<bool>>) {

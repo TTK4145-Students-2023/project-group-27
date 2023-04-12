@@ -5,8 +5,6 @@
 /// to the requests node.
 
 use std::thread::spawn;
-use std::net;
-use std::process;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -45,8 +43,7 @@ pub fn main(
             panic!("Could not establish receiving connection with master. Port {} already in use?", network_config.command_port);
         }
     });
-    
-    let id = get_id();
+
     let num_floors = elevator_settings.num_floors;
 
     let mut hall_request_buffer = RequestBuffer::new(TIMEOUT);
@@ -57,7 +54,7 @@ pub fn main(
             recv(command_rx) -> msg => {
                 // decode command message from master
                 let message = msg.unwrap();
-                let master_message = MasterMessage::parse(message, num_floors, id.clone());
+                let master_message = MasterMessage::parse(message, num_floors, network_config.command_port.to_string().clone());
                 hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
                 master_hall_requests_tx.send(master_message).unwrap();
             },
@@ -74,7 +71,7 @@ pub fn main(
                 hall_request_buffer.remove_timed_out_orders();
                 // send state and collected orders to master
                 let message = generate_elevator_message(
-                    id.clone(),
+                    network_config.command_port.to_string().clone(),
                     elevator_behaviour.clone(),
                     &hall_request_buffer
                 );
@@ -82,15 +79,6 @@ pub fn main(
             }
         }
     }
-}
-
-fn get_id() -> String {
-    let local_ip = net::TcpStream::connect("8.8.8.8:53")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .ip();
-    format!("{}#{}",local_ip, process::id())
 }
 
 pub fn generate_elevator_message(

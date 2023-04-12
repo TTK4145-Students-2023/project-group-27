@@ -46,7 +46,7 @@ pub fn main(
                 let destination = msg.unwrap();
                 elevator.behaviour = match elevator.behaviour {
                     Behaviour::Moving => {
-                        elevator.requests.add_order(destination, Call::Cab);
+                        elevator.requests.add_request(destination, Call::Cab);
                         button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
                         elevator.behaviour
                     },
@@ -56,7 +56,7 @@ pub fn main(
                             Behaviour::DoorOpen
                         }
                         else {
-                            elevator.requests.add_order(destination, Call::Cab);
+                            elevator.requests.add_request(destination, Call::Cab);
                             button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
                             elevator.behaviour
                         }
@@ -85,6 +85,7 @@ pub fn main(
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
+                            button_light_tx.send((Request { floor: elevator.floor, call: if elevator.direction == Direction::Up {Call::HallUp} else {Call::HallDown}}, false)).unwrap();
                             Behaviour::DoorOpen
                         },
                         Behaviour::DoorOpen => panic!("Impossible outcome"),
@@ -107,6 +108,7 @@ pub fn main(
                                 doors_activate_tx.send(true).unwrap();
                                 elevator.serve_requests_here();
                                 button_light_tx.send((Request { floor: elevator.floor, call: Call::Cab }, false)).unwrap();
+                                button_light_tx.send((Request { floor: elevator.floor, call: if elevator.direction == Direction::Up {Call::HallUp} else {Call::HallDown}}, false)).unwrap();
                                 Behaviour::DoorOpen
                             } else {
                                 motor_direction_tx.send(next_direction.unwrap()).unwrap();
