@@ -54,7 +54,7 @@ pub fn run() -> std::io::Result<()> {
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     println!("{:#?}",program_path);
-    let backup_port = 12345; // Magic nuber
+    let backup_port = config.network.backup_port; // Magic nuber
     let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port));
     let backup_data = handle.join().unwrap();
     // BECOME MAIN, CREATE NEW BACKUP

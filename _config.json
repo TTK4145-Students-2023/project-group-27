@@ -1,7 +1,8 @@
 {
     "network": {
         "update_ports": [19735, 19736, 19737],
-        "command_ports": [19738, 19739, 19740]
+        "command_ports": [19738, 19739, 19740],
+        "backup_ports": [19741, 19742, 19743]
     },
     "server": {
         "port": 15657
