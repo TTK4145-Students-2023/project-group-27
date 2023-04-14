@@ -94,4 +94,3 @@ pub fn generate_elevator_message(
         new_hall_orders: request_buffer.get_new_requests(),
     }
 }
-

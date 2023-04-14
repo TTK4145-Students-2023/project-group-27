@@ -8,3 +8,6 @@ simulator.con
 
 # CONFIG
 **/config.json
+
+# VSCODE
+.vscode/
