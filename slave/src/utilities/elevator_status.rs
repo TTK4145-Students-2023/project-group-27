@@ -60,11 +60,11 @@ impl ElevatorStatus {
         // }
     }
     
-    pub fn pop_served_requests(&mut self) -> Vec<Request> {
-        let served_requests = self.served_requests.clone();
-        self.served_requests.clear();
-        served_requests
-    }
+    // pub fn pop_served_requests(&mut self) -> Vec<Request> {
+    //     let served_requests = self.served_requests.clone();
+    //     self.served_requests.clear();
+    //     served_requests
+    // }
     
     pub fn should_stop(&self) -> bool {
         self.requests.should_stop(self.floor, self.direction)

@@ -38,9 +38,9 @@ fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
     }).ok();
 
 
-    let config = shared_resources::config::SlaveConfig::get();
-    let num_floors = config.elevator.num_floors;
-    let mut backup_debug = Debug::new(num_floors);
+    //let config = shared_resources::config::SlaveConfig::get();
+    //let num_floors = config.elevator.num_floors;
+    //let mut backup_debug = Debug::new(num_floors);
 
     loop {
         select! {
