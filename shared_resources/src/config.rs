@@ -21,6 +21,7 @@ pub struct NetworkConfig {
     pub update_port: u16,
     pub command_port: u16,
     pub backup_port: u16,
+    pub ack_port: u16
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +96,7 @@ impl SlaveConfig {
                 update_port: config_file.network["update_ports"][elevnum as usize], 
                 command_port: config_file.network["command_ports"][elevnum as usize],
                 backup_port: config_file.network["backup_ports"][elevnum as usize],
+                ack_port: config_file.network["ack_ports"][elevnum as usize]
             },
             server: ServerConfig { 
                 port: serverport,

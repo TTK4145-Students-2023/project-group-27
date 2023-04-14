@@ -4,7 +4,6 @@
 /// on these.
 
 use std::time::Duration;
-use std::panic;
 
 use crossbeam_channel::{select, Receiver, Sender, tick};
 
@@ -37,6 +36,9 @@ pub fn main(
 
     if elevator.behaviour == Behaviour::Moving {
         motor_direction_tx.send(elevator.direction).unwrap();
+    }
+    else if elevator.behaviour == Behaviour::DoorOpen {
+        doors_activate_tx.send(true).unwrap();
     }
     
 
@@ -88,7 +90,7 @@ pub fn main(
                             button_light_tx.send((Request { floor: elevator.floor, call: if elevator.direction == Direction::Up {Call::HallUp} else {Call::HallDown}}, false)).unwrap();
                             Behaviour::DoorOpen
                         },
-                        Behaviour::DoorOpen => panic!("Impossible outcome"),
+                        Behaviour::DoorOpen => elevator.behaviour,
                     }
                 }
             },

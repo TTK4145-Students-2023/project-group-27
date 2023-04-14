@@ -24,6 +24,7 @@ pub fn init(
     Receiver<u8>,
     Receiver<bool>,
     Receiver<bool>,
+    Sender<bool>,
     Sender<(Request,bool)>,
     Sender<Direction>,
     Sender<bool>,
@@ -58,6 +59,15 @@ pub fn init(
     {
         let elevator = elevator.clone();
         thread::Builder::new().name("stop_button".to_string()).spawn(move || poll::stop_button(elevator, stop_button_tx, poll_period))?;
+    }
+
+    let (stop_button_light_tx, stop_button_light_rx) = unbounded();
+    {
+        let elevator = elevator.clone();
+        thread::Builder::new().name("stop_button_light".to_string()).spawn(move || loop {
+            let on = stop_button_light_rx.recv().unwrap(); 
+            elevator.stop_button_light(on)
+        })?;
     }
 
     let (obstruction_tx, obstruction_rx) = unbounded();
@@ -113,6 +123,7 @@ pub fn init(
      floor_sensor_rx, 
      stop_button_rx, 
      obstruction_rx,
+     stop_button_light_tx,
      button_light_tx,
      motor_direction_tx,
      door_light_tx,

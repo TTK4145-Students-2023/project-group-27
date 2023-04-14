@@ -14,22 +14,22 @@ pub fn main(
     door_light_tx: Sender<bool>
 ) {
     const TIMER_DURATION: f64 = 3.0;
-    //let mut active: bool = false;
+    let mut active: bool = false;
 
     loop {
         select! {
             recv(obstruction_rx) -> msg => {
                 // received obstruction -> block this thread if doors are open
-                if msg.unwrap() {
-                    obstruction_rx.recv().unwrap();
-                }
+                active = msg.unwrap();
             },
             recv(doors_activate_rx) -> _ => {
                 door_light_tx.send(true).unwrap();
             },
             default(Duration::from_secs_f64(TIMER_DURATION)) => {
+                if !active {
                     doors_closing_tx.send(true).unwrap();
                     door_light_tx.send(false).unwrap();
+                }
             },
         }
     }
