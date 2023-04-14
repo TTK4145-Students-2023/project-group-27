@@ -64,16 +64,10 @@ pub fn run() -> std::io::Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
-<<<<<<< HEAD
     println!("{:#?}",program_path);
     let backup_port = config.network.backup_port;
     let ack_port = config.network.ack_port;
     let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port, ack_port));
-=======
-    println!("{:#?}", program_path);
-    let backup_port = config.network.backup_port;
-    let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port));
->>>>>>> 153c9f66716502f3f68302993b1863a9d907dc1b
     let backup_data = handle.join().unwrap();
     // BECOME MAIN, CREATE NEW BACKUP
 
@@ -194,7 +188,6 @@ pub fn run() -> std::io::Result<()> {
             recv(elevator_status_rx) -> msg => {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
-<<<<<<< HEAD
             recv(stop_button_rx) -> msg => {
                 if msg.unwrap() {
                     let exec_path = "packetloss";
@@ -219,21 +212,6 @@ pub fn run() -> std::io::Result<()> {
                     //return Ok(())
                 }
                 
-=======
-            recv(stop_button_rx) -> _ => {
-                println!("Applying packet loss!");
-                let exec_path = "packetloss";
-                let command = "sudo ./".to_owned() 
-                    + exec_path 
-                    + " -p " + &config.network.command_port.to_string()
-                    + "," + &config.network.update_port.to_string() 
-                    + " -r 0.95";
-                Command::new("sh")
-                    .arg("-c")
-                    .arg(command)
-                    .output()
-                    .expect("failed to induce packetloss ");
->>>>>>> 153c9f66716502f3f68302993b1863a9d907dc1b
             }
         }
     }
