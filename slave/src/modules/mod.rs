@@ -22,21 +22,14 @@ fn backup(num_floors: u8, backup_port: u16) -> ElevatorStatus {
 
     let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
     thread::Builder::new().name("backup_recieve_from_elevator".to_string()).spawn(move || {
-        //panic::set_hook(Box::new(|_| {println!("Went from backup to master")}));
         if udpnet::bcast::rx(backup_port, backup_recv_tx).is_err() {
-            process::exit(1);
+            println!("Backup failed");
         }
-        //let _ = panic::take_hook();
     }).ok();
-
-    //let config = shared_resources::config::SlaveConfig::get();
-    //let num_floors = config.elevator.num_floors;
-    //let mut backup_debug = Debug::new(num_floors);
 
     loop {
         select! {
             recv(backup_recv_rx) -> data => {
-                //backup_debug.printstatus(&data.clone().unwrap()).unwrap();
                 backup_data = data.unwrap();
                 
             },
@@ -56,37 +49,42 @@ pub fn run() -> std::io::Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
-    println!("{:#?}",program_path);
-    let backup_port = config.network.backup_port; // Magic nuber
+    println!("{:#?}", program_path);
+    let backup_port = config.network.backup_port;
     let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port));
     let backup_data = handle.join().unwrap();
     // BECOME MAIN, CREATE NEW BACKUP
 
     if cfg!(target_os = "linux") {
         Command::new("gnome-terminal")
-                .arg("--")
-                .arg("/bin/sh")
-                .arg("-c")
-                .arg("cd ".to_owned()
-                 + &program_path
-                 + " && "
-                 + "cargo run"
-                 + " --"
-                 + " --elevnum "
-                 + &config.elevnum.to_string()
-                 + " --serverport "
-                 + &config.server.port.to_string())
-                .output()
-                .expect("failed to start backup");
-    } else if cfg!(target_os = "macOS") {
+            .arg("--")
+            .arg("/bin/sh")
+            .arg("-c")
+            .arg("cd ".to_owned()
+                + &program_path
+                + " && "
+                + "cargo run"
+                + " --"
+                + " --elevnum "
+                + &config.elevnum.to_string()
+                + " --serverport "
+                + &config.server.port.to_string())
+            .output()
+            .expect("failed to start backup");
+    } else if cfg!(target_os = "macos") {
         Command::new("osascript")
-                .arg("-e")
-                .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
-                + program_path.as_str() 
-                + "; cargo run -- " 
-                + program_path.as_str() + "\"")
-                .output()
-                .expect("failed to start backup");
+            .arg("-e")
+            .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
+                + &program_path
+                + " && "
+                + "cargo run"
+                + " --"
+                + " --elevnum "
+                + &config.elevnum.to_string()
+                + " --serverport "
+                + &config.server.port.to_string() + "\"")
+            .output()
+            .expect("failed to start backup");
     }
 
     // INITIALIZE CHANNELS
@@ -184,9 +182,6 @@ pub fn run() -> std::io::Result<()> {
                     .arg(command)
                     .output()
                     .expect("failed to induce packetloss ");
-
-                //println!("STOPPING PROGRAM...");
-                //return Ok(())
             }
         }
     }
