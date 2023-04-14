@@ -64,7 +64,6 @@ pub fn main(
             },
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
-                hall_request_buffer.insert_served_requests(elevator_behaviour.pop_served_requests());
             } 
             recv(update_master) -> _ => {
                 // remove timed out orders
@@ -93,7 +92,6 @@ pub fn generate_elevator_message(
         direction: elevator_behaviour.direction.as_string().unwrap(),
         cab_requests: elevator_behaviour.requests.get_cab_requests(),
         new_hall_orders: request_buffer.get_new_requests(),
-        served_hall_orders: request_buffer.get_served_requests(),
     }
 }
 

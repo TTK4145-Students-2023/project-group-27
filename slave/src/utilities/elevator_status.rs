@@ -73,13 +73,4 @@ impl ElevatorStatus {
     pub fn next_direction(&self) -> Option<Direction> {
         self.requests.next_direction(self.floor, self.direction)
     }
-
-    pub fn current_floor_has_requests(&self) -> bool {
-        for call in self.requests.get_requests_at_floor(self.floor) {
-            if call {
-                return true
-            }
-        }
-        false
-    }
 }

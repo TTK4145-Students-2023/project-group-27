@@ -23,15 +23,17 @@ fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
     let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
     let (backup_ack_tx, backup_ack_rx) = unbounded::<ElevatorStatus>();
     thread::Builder::new().name("backup_recieve_from_elevator".to_string()).spawn(move || {
-        if udpnet::bcast::rx(backup_port, backup_recv_tx).is_err() {
-            println!("Backup failed");
+        match udpnet::bcast::rx(backup_port, backup_recv_tx) {
+            Err(BcError::IOError(_e)) => process::exit(1),
+            _ => (),
         }
     }).ok();
 
     thread::Builder::new().name("backup_ack_to_elevator".to_string()).spawn(move || {
         //panic::set_hook(Box::new(|_| {println!("Went from backup to master")}));
-        if udpnet::bcast::tx(ack_port, backup_ack_rx).is_err() {
-            process::exit(1);
+        match udpnet::bcast::tx(ack_port, backup_ack_rx) {
+            Err(BcError::IOError(_e)) => process::exit(1),
+            _ => (),
         }
         //let _ = panic::take_hook();
     }).ok();
