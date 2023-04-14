@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use crossbeam_channel::{select, unbounded};
 use network_rust::udpnet;
+use network_rust::udpnet::bcast::BcError;
 
 use crate::utilities::debug::Debug;
 use crate::utilities::elevator_status::ElevatorStatus;
