@@ -8,9 +8,21 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-slave:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
+    - name: Build-Slave
+      run: cd slave; cargo build --verbose
+  build-master:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build-Master
+      run: cd master; cargo build --verbose
+  check-shared-resources:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build-Shared-Resources
+      run: cd shared_resources; cargo check --verbose

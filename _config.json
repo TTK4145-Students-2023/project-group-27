@@ -1,0 +1,23 @@
+{
+    "network": {
+        "update_ports": [19735, 19736, 19737],
+        "command_ports": [19738, 19739, 19740],
+        "slave_backup_ports": [19741, 19742, 19743],
+        "master_backup_port": [19744],
+        "ack_ports": [19745, 19746, 19747]
+    },
+    "server": {
+        "port": 15657
+    },
+    "elevator": {
+        "num_floors": 4
+    },
+    "hall_request_assigner": {
+        "exec_folder_path": "hra_execs/",
+        "operating_systems": {
+            "linux": "hall_request_assigner",
+            "macos": "hall_request_assigner_macos",
+            "windows": "hall_request_assigner.exe"
+        }
+    }
+}
