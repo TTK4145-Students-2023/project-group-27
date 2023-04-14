@@ -23,11 +23,9 @@ fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
     let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
     let (backup_ack_tx, backup_ack_rx) = unbounded::<ElevatorStatus>();
     thread::Builder::new().name("backup_recieve_from_elevator".to_string()).spawn(move || {
-        //panic::set_hook(Box::new(|_| {println!("Went from backup to master")}));
         if udpnet::bcast::rx(backup_port, backup_recv_tx).is_err() {
-            process::exit(1);
+            println!("Backup failed");
         }
-        //let _ = panic::take_hook();
     }).ok();
 
     thread::Builder::new().name("backup_ack_to_elevator".to_string()).spawn(move || {
@@ -66,38 +64,49 @@ pub fn run() -> std::io::Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
+<<<<<<< HEAD
     println!("{:#?}",program_path);
     let backup_port = config.network.backup_port;
     let ack_port = config.network.ack_port;
     let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port, ack_port));
+=======
+    println!("{:#?}", program_path);
+    let backup_port = config.network.backup_port;
+    let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port));
+>>>>>>> 153c9f66716502f3f68302993b1863a9d907dc1b
     let backup_data = handle.join().unwrap();
     // BECOME MAIN, CREATE NEW BACKUP
 
     if cfg!(target_os = "linux") {
         Command::new("gnome-terminal")
-                .arg("--")
-                .arg("/bin/sh")
-                .arg("-c")
-                .arg("cd ".to_owned()
-                 + &program_path
-                 + " && "
-                 + "cargo run"
-                 + " --"
-                 + " --elevnum "
-                 + &config.elevnum.to_string()
-                 + " --serverport "
-                 + &config.server.port.to_string())
-                .output()
-                .expect("failed to start backup");
-    } else if cfg!(target_os = "macOS") {
+            .arg("--")
+            .arg("/bin/sh")
+            .arg("-c")
+            .arg("cd ".to_owned()
+                + &program_path
+                + " && "
+                + "cargo run"
+                + " --"
+                + " --elevnum "
+                + &config.elevnum.to_string()
+                + " --serverport "
+                + &config.server.port.to_string())
+            .output()
+            .expect("failed to start backup");
+    } else if cfg!(target_os = "macos") {
         Command::new("osascript")
-                .arg("-e")
-                .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
-                + program_path.as_str() 
-                + "; cargo run -- " 
-                + program_path.as_str() + "\"")
-                .output()
-                .expect("failed to start backup");
+            .arg("-e")
+            .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
+                + &program_path
+                + " && "
+                + "cargo run"
+                + " --"
+                + " --elevnum "
+                + &config.elevnum.to_string()
+                + " --serverport "
+                + &config.server.port.to_string() + "\"")
+            .output()
+            .expect("failed to start backup");
     }
 
     // INITIALIZE CHANNELS
@@ -185,6 +194,7 @@ pub fn run() -> std::io::Result<()> {
             recv(elevator_status_rx) -> msg => {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
+<<<<<<< HEAD
             recv(stop_button_rx) -> msg => {
                 if msg.unwrap() {
                     let exec_path = "packetloss";
@@ -209,6 +219,21 @@ pub fn run() -> std::io::Result<()> {
                     //return Ok(())
                 }
                 
+=======
+            recv(stop_button_rx) -> _ => {
+                println!("Applying packet loss!");
+                let exec_path = "packetloss";
+                let command = "sudo ./".to_owned() 
+                    + exec_path 
+                    + " -p " + &config.network.command_port.to_string()
+                    + "," + &config.network.update_port.to_string() 
+                    + " -r 0.95";
+                Command::new("sh")
+                    .arg("-c")
+                    .arg(command)
+                    .output()
+                    .expect("failed to induce packetloss ");
+>>>>>>> 153c9f66716502f3f68302993b1863a9d907dc1b
             }
         }
     }
