@@ -1,3 +1,4 @@
+use cbc::RecvError;
 use cbc::SendError;
 use crossbeam_channel as cbc;
 use log::warn;
@@ -11,27 +12,36 @@ use std::io;
 #[path = "./sock.rs"]
 mod sock;
 
-pub enum RXError<T> {
+#[derive(Debug)]
+pub enum BcError<T> {
     IOError(io::Error),
     CBCSendError(SendError<T>),
+    CBCRecvError(RecvError)
 }
 
-impl<T> From<io::Error> for RXError<T> {
+
+impl<T> From<io::Error> for BcError<T> {
     fn from(e: io::Error) -> Self {
-        RXError::IOError(e)
+        BcError::IOError(e)
     }
 }
 
-impl<T> From<SendError<T>> for RXError<T> {
+impl<T> From<SendError<T>> for BcError<T> {
     fn from(e: SendError<T>) -> Self {
-        RXError::CBCSendError(e)
+        BcError::CBCSendError(e)
     }
 }
 
-pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Result<()> {
+impl<T> From<RecvError> for BcError<T> {
+    fn from(e: RecvError) -> Self {
+        BcError::CBCRecvError(e)
+    }
+}
+
+pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> Result<(), BcError<T>> {
     let (s, addr) = sock::new_tx(port)?;
     loop {
-        let data = ch.recv().unwrap();
+        let data = ch.recv()?;
         let serialized = serde_json::to_string(&data).unwrap();
         if let Err(e) = s.send_to(serialized.as_bytes(), &addr) {
             warn!("Unable to send packet, {}", e);
@@ -39,7 +49,7 @@ pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> std::io::Resu
     }
 }
 
-pub fn rx<T: serde::de::DeserializeOwned>(port: u16, ch: cbc::Sender<T>) -> Result<(), RXError<T>> {
+pub fn rx<T: serde::de::DeserializeOwned>(port: u16, ch: cbc::Sender<T>) -> Result<(), BcError<T>> {
     let s = sock::new_rx(port)?;
 
     let mut buf = [0; 1024];

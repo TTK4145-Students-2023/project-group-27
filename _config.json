@@ -2,8 +2,9 @@
     "network": {
         "update_ports": [19735, 19736, 19737],
         "command_ports": [19738, 19739, 19740],
-        "backup_ports": [19741, 19742, 19743],
-        "ack_ports": [19744, 19745, 19746]
+        "slave_backup_ports": [19741, 19742, 19743],
+        "master_backup_port": [19744],
+        "ack_ports": [19745, 19746, 19747]
     },
     "server": {
         "port": 15657

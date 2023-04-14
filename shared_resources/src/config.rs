@@ -95,7 +95,7 @@ impl SlaveConfig {
             network: NetworkConfig { 
                 update_port: config_file.network["update_ports"][elevnum as usize], 
                 command_port: config_file.network["command_ports"][elevnum as usize],
-                backup_port: config_file.network["backup_ports"][elevnum as usize],
+                backup_port: config_file.network["slave_backup_ports"][elevnum as usize],
                 ack_port: config_file.network["ack_ports"][elevnum as usize]
             },
             server: ServerConfig { 
@@ -112,6 +112,7 @@ impl SlaveConfig {
 pub struct MasterNetworkConfig {
     pub update_ports: Vec<u16>,
     pub command_ports: Vec<u16>,
+    pub backup_port: u16
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +137,7 @@ impl MasterConfig {
             network: MasterNetworkConfig { 
                 update_ports: config_file.network["update_ports"].to_vec(),
                 command_ports: config_file.network["command_ports"].to_vec(),
+                backup_port: config_file.network["master_backup_port"][0]
             },
             elevator: ElevatorConfig { 
                 num_floors: config_file.elevator["num_floors"], 

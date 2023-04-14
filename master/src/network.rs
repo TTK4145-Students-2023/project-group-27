@@ -23,9 +23,11 @@ pub struct ElevatorData {
 }
 
 pub fn main(
+    backup_data: Vec<Vec<bool>>,
     config: MasterConfig,
     hall_requests_tx: Sender<Vec<Vec<bool>>>,
     connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
+    backup_send_tx: Sender<Vec<Vec<bool>>>
 ) {
     let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<Vec<bool>>>>();
     for port in config.network.command_ports {
@@ -54,7 +56,7 @@ pub fn main(
     let timer = tick(update_freq);
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
-    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; config.elevator.num_floors as usize];
+    let mut hall_requests = backup_data;
     let mut output: HashMap<String, Vec<Vec<bool>>> = HashMap::new();
 
     loop {
@@ -68,15 +70,20 @@ pub fn main(
                 let cab_requests = msg.clone().unwrap().cab_requests;
 
                 // update elevator information data structure
-                connected_elevators.insert(id, ElevatorData{
+                connected_elevators.insert(id.clone(), ElevatorData{
                     state: HRAElevState { 
-                        behaviour: behaviour, 
+                        behaviour: behaviour.clone(), 
                         floor: floor, 
-                        direction: direction, 
+                        direction: direction.clone(), 
                         cab_requests: cab_requests
                     },
-                    last_seen: Instant::now()
-                });
+                    last_seen: if behaviour == "moving" && floor == connected_elevators[&id.clone()].state.floor{ 
+                            connected_elevators[&id].last_seen 
+                        } 
+                        else {
+                            Instant::now()
+                        }
+                    });
 
                 // collect new hall orders
                 for order in msg.clone().unwrap().new_hall_orders {
@@ -84,8 +91,12 @@ pub fn main(
                 }
 
                 // remove served hall orders
-                for order in msg.clone().unwrap().served_hall_orders {
-                    hall_requests[order.floor as usize][order.call as usize] = false;
+                // for order in msg.clone().unwrap().served_hall_orders {
+                //     hall_requests[order.floor as usize][order.call as usize] = false;
+                // }
+                if behaviour == "doorOpen" {
+                    let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
+                    hall_requests[floor as usize][call as usize] = false;
                 }
 
                 // assign hall orders
@@ -113,5 +124,7 @@ pub fn main(
             }
         }
         command_tx.send(output.clone()).unwrap();
+
+        backup_send_tx.send(hall_requests.clone()).unwrap();
     }
 }
