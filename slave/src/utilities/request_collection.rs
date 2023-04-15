@@ -1,4 +1,5 @@
 use shared_resources::call::Call;
+use shared_resources::request::Request;
 
 use crate::utilities::direction::Direction;
 
@@ -72,9 +73,11 @@ impl RequestCollection {
 
     pub fn next_direction(&self, floor: u8, last_direction: Direction) -> Option<Direction> {
         let other_direction = if last_direction == Direction::Up { Direction::Down } else { Direction::Up };
-        if Self::further_requests_in_direction(self, floor, last_direction) {
+        if self.further_requests_in_direction(floor, last_direction) 
+            || self.requests[floor as usize][last_direction.to_call().unwrap() as usize] {
             return Some(last_direction)
-        } else if Self::further_requests_in_direction(self, floor, other_direction) {
+        } else if self.further_requests_in_direction(floor, other_direction)
+            || self.requests[floor as usize][other_direction.to_call().unwrap() as usize] {
             return Some(other_direction)
         }
         None
@@ -82,5 +85,29 @@ impl RequestCollection {
 
     pub fn get_requests_at_floor(&self, floor: u8) -> Vec<bool> {
         self.requests[floor as usize].clone()
+    }
+
+    pub fn request_pair_iterator(&self) -> Vec<(Request, bool)> {
+        let mut request_pairs = Vec::new();
+        for floor in 0..self.num_floors {
+            for call in Call::iter() {
+                request_pairs.push((Request {
+                    floor: floor,
+                    call: call,
+                }, self.requests[floor as usize][call as usize]));
+            }
+        }
+        request_pairs
+    }
+
+    pub fn has_unserved_requests(&self) -> bool {
+        for floor in 0..self.num_floors {
+            for call in Call::iter() {
+                if self.requests[floor as usize][call as usize] {
+                    return true
+                }
+            }
+        }
+        false
     }
 }

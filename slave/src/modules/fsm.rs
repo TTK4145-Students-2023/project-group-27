@@ -7,7 +7,6 @@ use std::time::Duration;
 
 use crossbeam_channel::{select, Receiver, Sender, tick, unbounded};
 
-use shared_resources::config::ElevatorConfig;
 use shared_resources::call::Call;
 use shared_resources::request::Request;
 
@@ -17,7 +16,6 @@ use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
     backup_data: ElevatorStatus,
-    elevator_settings: ElevatorConfig,
     floor_sensor_rx: Receiver<u8>,
     floor_indicator_tx: Sender<u8>,
     button_light_tx: Sender<(Request,bool)>,
@@ -31,46 +29,41 @@ pub fn main(
     let timer = tick(Duration::from_secs_f64(0.1));
     let (new_request_tx, new_request_rx) = unbounded();
 
-    let num_floors = elevator_settings.num_floors;
     let mut elevator = backup_data;
 
     if elevator.behaviour == Behaviour::Moving {
         motor_direction_tx.send(elevator.direction).unwrap();
-    }
-    else if elevator.behaviour == Behaviour::DoorOpen {
+    } else if elevator.behaviour == Behaviour::DoorOpen {
         doors_activate_tx.send(true).unwrap();
     }
 
     loop {
         select! {
-            // channels for receiving requests
+            // channels for receiving requests from other modules => generates the new_request event
             recv(cab_button_rx) -> msg => {
                 let destination = msg.unwrap();
                 elevator.requests.add_request(destination, Call::Cab);
-                button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
                 new_request_tx.send(true).unwrap();
             },
             recv(master_hall_requests_rx) -> msg => {
                 let message = msg.unwrap();
                 elevator.requests.update_hall_requests(message.our_hall_requests);
-                for floor in 0..num_floors {
-                    for call in Call::iter_hall() {
-                        button_light_tx.send((
-                            Request{ floor: floor, call: call }, 
-                            message.all_hall_requests[floor as usize][call as usize],
-                        )).unwrap();
-                        if message.all_hall_requests[floor as usize][call as usize] {
-                            new_request_tx.send(true).unwrap();
-                        }
-                    }
+                if elevator.requests.has_unserved_requests() {
+                    new_request_tx.send(true).unwrap();
+                }
+                for request_pair in elevator.requests.request_pair_iterator() {
+                    button_light_tx.send(request_pair).unwrap();
                 }
             },
             // channels for events in the state machine
             recv(new_request_rx) -> _ => {
+                for request_pair in elevator.requests.request_pair_iterator() {
+                    button_light_tx.send(request_pair).unwrap();
+                }
                 elevator.behaviour = match elevator.behaviour {
                     Behaviour::Idle => {
-                        let next_direction = elevator.next_direction();
-                        if elevator.should_stop() && elevator.requests_at_this_floor() {
+                        elevator.update_direction();
+                        if elevator.requests_at_this_floor() {
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request {
@@ -79,19 +72,16 @@ pub fn main(
                             }, false)).unwrap();
                             button_light_tx.send((Request { 
                                 floor: elevator.floor, 
-                                call: if elevator.direction == Direction::Up { Call::HallUp } else { Call::HallDown }
+                                call: elevator.direction.to_call().unwrap()
                             }, false)).unwrap();
                             Behaviour::DoorOpen
-                        } else if next_direction.is_some() {
-                            elevator.direction = next_direction.unwrap();
-                            motor_direction_tx.send(next_direction.unwrap()).unwrap();
+                        } else if elevator.requests.has_unserved_requests() {
+                            motor_direction_tx.send(elevator.direction).unwrap();
                             Behaviour::Moving
-                        } else {
-                            elevator.behaviour
-                        }
+                        } else { Behaviour::Idle }
                     },
                     _ => elevator.behaviour,
-                }
+                };
             },
             recv(floor_sensor_rx) -> msg => {
                 elevator.floor = msg.unwrap();
@@ -108,7 +98,7 @@ pub fn main(
                             }, false)).unwrap();
                             button_light_tx.send((Request { 
                                 floor: elevator.floor, 
-                                call: if elevator.direction == Direction::Up { Call::HallUp } else { Call::HallDown }
+                                call: elevator.direction.to_call().unwrap()
                             }, false)).unwrap();
                             Behaviour::DoorOpen
                         },
@@ -119,8 +109,8 @@ pub fn main(
             recv(doors_closing_rx) -> _ => {
                 elevator.behaviour = match elevator.behaviour {
                     Behaviour::DoorOpen => {
-                        let next_direction = elevator.next_direction();
-                        if elevator.requests_in_direction_at_this_floor() {
+                        elevator.update_direction();
+                        if elevator.should_stop() && elevator.requests_at_this_floor() {
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request {
@@ -129,25 +119,11 @@ pub fn main(
                             }, false)).unwrap();
                             button_light_tx.send((Request { 
                                 floor: elevator.floor, 
-                                call: if elevator.direction == Direction::Up { Call::HallUp } else { Call::HallDown }
+                                call: elevator.direction.to_call().unwrap()
                             }, false)).unwrap();
                             Behaviour::DoorOpen
-                        } else if elevator.should_stop() && elevator.requests_at_this_floor() {
-                            elevator.direction = if elevator.direction == Direction::Up { Direction::Down } else { Direction::Up };
-                            doors_activate_tx.send(true).unwrap();
-                            elevator.serve_requests_here();
-                            button_light_tx.send((Request {
-                                floor: elevator.floor,
-                                call: Call::Cab
-                            }, false)).unwrap();
-                            button_light_tx.send((Request { 
-                                floor: elevator.floor, 
-                                call: if elevator.direction == Direction::Up { Call::HallUp } else { Call::HallDown }
-                            }, false)).unwrap();
-                            Behaviour::DoorOpen
-                        } else if next_direction.is_some() {
-                            elevator.direction = next_direction.unwrap();
-                            motor_direction_tx.send(next_direction.unwrap()).unwrap();
+                        } else if elevator.requests.has_unserved_requests() {
+                            motor_direction_tx.send(elevator.direction).unwrap();
                             Behaviour::Moving
                         } else {
                             Behaviour::Idle

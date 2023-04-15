@@ -40,8 +40,7 @@ impl ElevatorStatus {
     
     pub fn serve_requests_here(&mut self) {
         self.requests.clear_request(Call::Cab, self.floor);
-        let call = if self.direction == Direction::Up { Call::HallUp } else { Call::HallDown };
-        self.requests.clear_request(call, self.floor);
+        self.requests.clear_request(self.direction.to_call().unwrap(), self.floor);
     }
     
     pub fn should_stop(&self) -> bool {
@@ -57,12 +56,9 @@ impl ElevatorStatus {
         false
     }
 
-    pub fn requests_in_direction_at_this_floor(&self) -> bool {
-        self.requests.requests_in_direction_at_this_floor(self.floor, self.direction)
-        || self.requests.cab_request_at_floor(self.floor)
-    }
-
-    pub fn next_direction(&self) -> Option<Direction> {
-        self.requests.next_direction(self.floor, self.direction)
+    pub fn update_direction(&mut self) {
+        if self.requests.next_direction(self.floor, self.direction).is_some() {
+            self.direction = self.requests.next_direction(self.floor, self.direction).unwrap();
+        }
     }
 }

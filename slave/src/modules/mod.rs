@@ -62,22 +62,18 @@ pub fn run() -> std::io::Result<()> {
     ))?;
 
     // INITIALIZE THREAD FOR STATE MACHINE
-    {
-        let elevator_settings = config.elevator.clone();
-        thread::Builder::new().name("fsm".to_string()).spawn(move || fsm::main(
-            backup_data,
-            elevator_settings,
-            floor_sensor_rx,
-            floor_indicator_tx,
-            button_light_tx,
-            doors_closing_rx,
-            doors_activate_tx,
-            cab_button_rx,
-            motor_direction_tx,
-            master_hall_requests_rx,
-            elevator_status_tx,
-        ))?;
-    }
+    thread::Builder::new().name("fsm".to_string()).spawn(move || fsm::main(
+        backup_data,
+        floor_sensor_rx,
+        floor_indicator_tx,
+        button_light_tx,
+        doors_closing_rx,
+        doors_activate_tx,
+        cab_button_rx,
+        motor_direction_tx,
+        master_hall_requests_rx,
+        elevator_status_tx,
+    ))?;
 
     // INITIALIZE NETWORK MODULE
     {
