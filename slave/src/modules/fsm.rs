@@ -133,7 +133,7 @@ pub fn main(
                                 call: if elevator.direction == Direction::Up { Call::HallUp } else { Call::HallDown }
                             }, false)).unwrap();
                             Behaviour::DoorOpen
-                        } else if elevator.requests_at_this_floor() {
+                        } else if elevator.should_stop() && elevator.requests_at_this_floor() {
                             elevator.direction = if elevator.direction == Direction::Up { Direction::Down } else { Direction::Up };
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
