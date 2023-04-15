@@ -24,5 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Build-Shared-Resources
+    - name: Check-Shared-Resources
       run: cd shared_resources; cargo check --verbose
+  check-network-rust:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Check-Network-Rust
+      run: cd network-rust; cargo check --verbose
