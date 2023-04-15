@@ -92,24 +92,24 @@ fn main() -> Result<()> {
 
     let (backup_send_tx, backup_send_rx) = unbounded::<Vec<Vec<bool>>>();
     {
-        thread::spawn(move || network::main(
+        thread::Builder::new().name("master_network".to_string()).spawn(move || network::main(
             backup_data,
             config,
             hall_requests_tx,
             connected_elevators_tx,
             backup_send_tx
-        ));
+        ))?;
     }
     
 
-    thread::spawn(move || debug::main(
+    thread::Builder::new().name("master_debug".to_string()).spawn(move || debug::main(
         num_floors,
         hall_requests_rx,
         connected_elevators_rx
-    ));
+    ))?;
 
     {
-        thread::Builder::new().name("master to backup".to_string()).spawn(move || {
+        thread::Builder::new().name("master_to_backup".to_string()).spawn(move || {
             if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
                 // crash program if creating the socket fails (`bcast:tx` will always block if the
                 // initialization succeeds)

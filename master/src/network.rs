@@ -49,7 +49,7 @@ pub fn main(
         });
     }
     
-    const TIMEOUT: f64 = 5.0;
+    let timeout: f64 = 2.5*config.elevator.num_floors as f64;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
@@ -70,7 +70,8 @@ pub fn main(
                 let cab_requests = msg.clone().unwrap().cab_requests;
 
                 // update elevator information data structure
-                if connected_elevators.contains_key(&id.clone()) {
+
+                if behaviour != "moving" || connected_elevators.contains_key(&id.clone()) {
                     connected_elevators.insert(id.clone(), ElevatorData{
                         state: HRAElevState { 
                             behaviour: behaviour.clone(), 
@@ -78,28 +79,14 @@ pub fn main(
                             direction: direction.clone(), 
                             cab_requests: cab_requests
                         },
-                        last_seen: if behaviour == "moving" && floor == connected_elevators[&id.clone()].state.floor {
-                            connected_elevators[&id].last_seen
-                        } else {
+                        last_seen: if behaviour != "moving" {
                             Instant::now()
+                        } else {
+                            connected_elevators[&id].last_seen
                         }
                     });
-                    
                 }
-                else {
-                    if behaviour != "moving" {
-                        connected_elevators.insert(id.clone(), ElevatorData{
-                            state: HRAElevState { 
-                                behaviour: behaviour.clone(), 
-                                floor: floor, 
-                                direction: direction.clone(), 
-                                cab_requests: cab_requests
-                            },
-                            last_seen: Instant::now()
-                        });
-                    }
-                }
-
+                
                 // collect new hall orders
                 for order in msg.clone().unwrap().new_hall_orders {
                     hall_requests[order.floor as usize][order.call as usize] = true;
@@ -131,7 +118,7 @@ pub fn main(
             recv(timer) -> _ => {
                 // remove lost elevators
                 for id in connected_elevators.clone().keys() {
-                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(TIMEOUT) {
+                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(timeout) {
                         connected_elevators.remove(id);
                     }
                 }
