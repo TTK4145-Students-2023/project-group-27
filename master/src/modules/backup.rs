@@ -10,7 +10,7 @@ use network_rust::udpnet;
 use network_rust::udpnet::bcast::BcError;
 
 pub fn backup(num_floors: u8, backup_port: u16) -> Vec<Vec<bool>> {
-    println!("MASTER BACKUP ON PORT: {:#?}\n---------------------",backup_port);
+    println!("MASTER BACKUP ON PORT: {:#?}\n---------------------", backup_port);
     let mut backup_data: Vec<Vec<bool>> = vec![vec![false; Call::num_hall_calls() as usize]; num_floors as usize];
 
     let (backup_recv_tx, backup_recv_rx) = unbounded::<Vec<Vec<bool>>>();
