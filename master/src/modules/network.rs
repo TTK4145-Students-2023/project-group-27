@@ -3,9 +3,10 @@
 /// slave nodes and uses the hall_request_assigner algorithm to distribute orders
 /// among the connected elevators and UDP broadcasts the result. 
 
-use std::thread::spawn;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
+use std::thread;
+use std::process;
 
 use crossbeam_channel::{unbounded, select, Sender, tick};
 use network_rust::udpnet;
@@ -21,12 +22,11 @@ pub fn main(
     config: MasterConfig,
     hall_requests_tx: Sender<Vec<Vec<bool>>>,
     connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
-    backup_send_tx: Sender<Vec<Vec<bool>>>
 ) {
     let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<Vec<bool>>>>();
     for port in config.network.command_ports {
         let command_rx = command_rx.clone();
-        spawn(move || {
+        thread::spawn(move || {
             if udpnet::bcast::tx(port, command_rx, false).is_err() {
                 panic!("Could not establish sending connection with slave. Port {} already in use?", port);
             }
@@ -36,14 +36,21 @@ pub fn main(
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     for port in config.network.update_ports {
         let elevator_message_tx = elevator_message_tx.clone();
-        spawn(move || {
+        thread::spawn(move || {
             if udpnet::bcast::rx(port, elevator_message_tx).is_err() {
                 panic!("Could not establish receiving connection from slave. Port {} already in use?", port);
             }
         });
     }
+ 
+    let (backup_send_tx, backup_send_rx) = unbounded::<Vec<Vec<bool>>>();
+    thread::Builder::new().name("master_to_backup".to_string()).spawn(move || {
+        if udpnet::bcast::tx(config.network.pp_port, backup_send_rx, false).is_err() {
+            process::exit(1);
+        }
+    }).unwrap();
     
-    let timeout: f64 = 2.5*config.elevator.num_floors as f64;
+    let timeout: f64 = 2.5 * config.elevator.num_floors as f64;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
@@ -64,22 +71,27 @@ pub fn main(
                 let cab_requests = msg.clone().unwrap().cab_requests;
 
                 // update elevator information data structure
-
-                if behaviour != "moving" || connected_elevators.contains_key(&id.clone()) {
-                    connected_elevators.insert(id.clone(), ElevatorData{
-                        state: HRAElevState { 
-                            behaviour: behaviour.clone(), 
-                            floor: floor, 
-                            direction: direction.clone(), 
-                            cab_requests: cab_requests
-                        },
-                        last_seen: if behaviour != "moving" {
-                            Instant::now()
-                        } else {
-                            connected_elevators[&id].last_seen
-                        }
-                    });
-                }
+                connected_elevators.entry(id.clone()).or_insert(ElevatorData{
+                    state: HRAElevState { 
+                        behaviour: behaviour.clone(), 
+                        floor: floor, 
+                        direction: direction.clone(), 
+                        cab_requests: cab_requests.clone(),
+                    },
+                    last_seen: Instant::now(),
+                    last_available: Instant::now(),
+                });
+                connected_elevators.insert(id.clone(), ElevatorData{
+                    state: HRAElevState { 
+                        behaviour: behaviour.clone(), 
+                        floor: floor, 
+                        direction: direction.clone(), 
+                        cab_requests: cab_requests,
+                    },
+                    last_seen: Instant::now(),
+                    last_available: if behaviour != connected_elevators[&id].state.behaviour || behaviour == "idle" 
+                        { Instant::now() } else { connected_elevators[&id].last_available },
+                });
                 
                 // collect new hall orders
                 for order in msg.clone().unwrap().new_hall_orders {
@@ -92,18 +104,19 @@ pub fn main(
                     hall_requests[floor as usize][call as usize] = false;
                 }
 
-                // assign hall orders
+                // assign hall orders only to available elevators
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
-                    states.insert(id, data.state);
+                    if data.last_available.elapsed() < Duration::from_secs_f64(timeout) {
+                        states.insert(id, data.state);
+                    }
                 }
                 output = match assign_orders(&hra_exec_path, hall_requests.clone(), states) {
                     Ok(result) => result,
-                    Err(_) => continue, // give up and try again next time :)
+                    Err(_) => continue,
                 };
 
                 // broadcast assigned orders
-
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
             },
             recv(timer) -> _ => {
@@ -117,7 +130,6 @@ pub fn main(
             }
         }
         command_tx.send(output.clone()).unwrap();
-
         backup_send_tx.send(hall_requests.clone()).unwrap();
     }
 }

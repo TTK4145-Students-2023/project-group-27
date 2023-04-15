@@ -11,7 +11,8 @@ use std::time::Instant;
 #[derive(Clone)]
 pub struct ElevatorData {
     pub state: HRAElevState,
-    pub last_seen: Instant
+    pub last_seen: Instant,
+    pub last_available: Instant,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
