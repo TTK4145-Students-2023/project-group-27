@@ -98,8 +98,6 @@ pub fn run() -> std::io::Result<()> {
     {
         thread::Builder::new().name("backup_udp_sender".to_string()).spawn(move || {
             if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
-                // crash program if creating the socket fails (`bcast:tx` will always block if the
-                // initialization succeeds)
                 process::exit(1);
             }
         })?;
