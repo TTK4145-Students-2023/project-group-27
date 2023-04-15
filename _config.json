@@ -1,10 +1,12 @@
 {
     "network": {
-        "update_ports": [19735, 19736, 19737],
-        "command_ports": [19738, 19739, 19740],
-        "slave_backup_ports": [19741, 19742, 19743],
-        "master_backup_port": [19744],
-        "ack_ports": [19745, 19746, 19747]
+        "update_ports": [19730, 19731, 19732],
+        "command_ports": [19740, 19741, 19742],
+        "slave_pp_update_ports": [19750, 19751, 19752],
+        "slave_pp_ack_ports": [19760, 19761, 19762],
+        "backup_update_ports": [19770],
+        "backup_ack_ports": [19780],
+        "master_pp_ports": [19790, 19791, 19792]
     },
     "server": {
         "port": 15657

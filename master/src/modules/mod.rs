@@ -22,7 +22,7 @@ pub fn run() -> Result<()> {
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     println!("{:#?}",program_path);
-    let backup_port = config.network.backup_port;
+    let backup_port = config.network.backup_update_port;
     //let ack_port = config.network.ack_port;
     let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port));
     let backup_data = handle.join().unwrap();
@@ -49,7 +49,7 @@ pub fn run() -> Result<()> {
 
     {
         thread::Builder::new().name("master to backup".to_string()).spawn(move || {
-            if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
+            if udpnet::bcast::tx(backup_port, backup_send_rx, false).is_err() {
                 process::exit(1);
             }
         })?;

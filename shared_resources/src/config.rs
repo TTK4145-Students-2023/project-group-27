@@ -20,8 +20,8 @@ pub struct ConfigFile {
 pub struct NetworkConfig {
     pub update_port: u16,
     pub command_port: u16,
-    pub backup_port: u16,
-    pub ack_port: u16
+    pub pp_update_port: u16,
+    pub pp_ack_port: u16
 }
 
 #[derive(Debug, Clone)]
@@ -48,17 +48,17 @@ fn read_config_file() -> Result<ConfigFile, serde_json::Error> {
 }
 
 fn parse_env_args(defaultport: u16) -> (u8, u16) {
-    let (mut elevnum, mut serverport) = (0, defaultport);
+    let (mut num, mut serverport) = (0, defaultport);
 
     let args: Vec<String> = env::args().collect();
     for arg_pair in args.rchunks_exact(2) {
         match arg_pair[0].as_str() {
-            "--elevnum" => {
-                elevnum = match arg_pair[1].parse::<u8>() {
+            "--num" => {
+                num = match arg_pair[1].parse::<u8>() {
                     Ok(num) => num,
                     Err(_) => {
-                        println!("elevnum {} is not a number, skipping...", arg_pair[1]);
-                        elevnum
+                        println!("num {} is not a number, skipping...", arg_pair[1]);
+                        num
                     },
                 };
             },
@@ -74,7 +74,7 @@ fn parse_env_args(defaultport: u16) -> (u8, u16) {
             _ => {println!("illegal argument {}, skipping...", arg_pair[0]);},
         }
     }
-    (elevnum, serverport)
+    (num, serverport)
 }
 
 #[derive(Debug, Clone)]
@@ -95,8 +95,8 @@ impl SlaveConfig {
             network: NetworkConfig { 
                 update_port: config_file.network["update_ports"][elevnum as usize], 
                 command_port: config_file.network["command_ports"][elevnum as usize],
-                backup_port: config_file.network["slave_backup_ports"][elevnum as usize],
-                ack_port: config_file.network["ack_ports"][elevnum as usize]
+                pp_update_port: config_file.network["slave_pp_update_ports"][elevnum as usize],
+                pp_ack_port: config_file.network["slave_pp_ack_ports"][elevnum as usize]
             },
             server: ServerConfig { 
                 port: serverport,
@@ -112,7 +112,9 @@ impl SlaveConfig {
 pub struct MasterNetworkConfig {
     pub update_ports: Vec<u16>,
     pub command_ports: Vec<u16>,
-    pub backup_port: u16
+    pub backup_update_port: u16,
+    pub backup_ack_port: u16,
+    pub pp_port: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -122,6 +124,7 @@ pub struct HallRequestAssignerConfig {
 
 #[derive(Debug, Clone)]
 pub struct MasterConfig {
+    pub masternum: u8,
     pub network: MasterNetworkConfig,
     pub elevator: ElevatorConfig,
     pub hall_request_assigner: HallRequestAssignerConfig,
@@ -133,11 +136,15 @@ impl MasterConfig {
         let exec_path = config_file.hall_request_assigner.exec_folder_path.clone()
             + &config_file.hall_request_assigner.operating_systems[env::consts::OS];
 
+        let (masternum, _) = parse_env_args(config_file.server["port"]);
         MasterConfig {
+            masternum: masternum,
             network: MasterNetworkConfig { 
                 update_ports: config_file.network["update_ports"].to_vec(),
                 command_ports: config_file.network["command_ports"].to_vec(),
-                backup_port: config_file.network["master_backup_port"][0]
+                backup_update_port: config_file.network["backup_update_ports"][0],
+                backup_ack_port: config_file.network["backup_ack_ports"][0],
+                pp_port: config_file.network["master_pp_ports"][masternum as usize],
             },
             elevator: ElevatorConfig { 
                 num_floors: config_file.elevator["num_floors"], 

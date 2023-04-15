@@ -84,7 +84,7 @@ fn main() -> std::io::Result<()> {
     // The sender for our custom data
     {
         spawn(move || {
-            if udpnet::bcast::tx(msg_port, custom_data_send_rx).is_err() {
+            if udpnet::bcast::tx(msg_port, custom_data_send_rx, false).is_err() {
                 // crash program if creating the socket fails (`bcast:tx` will always block if the
                 // initialization succeeds)
                 process::exit(1);

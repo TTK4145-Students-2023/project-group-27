@@ -27,7 +27,7 @@ pub fn main(
     for port in config.network.command_ports {
         let command_rx = command_rx.clone();
         spawn(move || {
-            if udpnet::bcast::tx(port, command_rx).is_err() {
+            if udpnet::bcast::tx(port, command_rx, false).is_err() {
                 panic!("Could not establish sending connection with slave. Port {} already in use?", port);
             }
         });

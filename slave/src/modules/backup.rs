@@ -8,39 +8,37 @@ use network_rust::udpnet::{self, bcast::BcError};
 
 use crate::utilities::elevator_status::ElevatorStatus;
 
-pub fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
-    println!("SLAVE BACKUP ON PORT: {:#?}\n------------------------",backup_port);
+pub fn backup(num_floors: u8, pp_update_port: u16, pp_ack_port: u16) -> ElevatorStatus {
+    println!("SLAVE PROCESS PAIR BACKUP ON PORT: {:#?}\n------------------------", pp_update_port);
     let mut backup_data: ElevatorStatus = ElevatorStatus::new(num_floors);
 
-    let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
-    let (backup_ack_tx, backup_ack_rx) = unbounded::<ElevatorStatus>();
-    thread::Builder::new().name("backup_recieve_from_elevator".to_string()).spawn(move || {
-        match udpnet::bcast::rx(backup_port, backup_recv_tx) {
+    let (pp_update_tx, pp_update_rx) = unbounded::<ElevatorStatus>();
+    let (pp_ack_tx, pp_ack_rx) = unbounded::<ElevatorStatus>();
+    thread::Builder::new().name("backup_recieve_from_primary".to_string()).spawn(move || {
+        match udpnet::bcast::rx(pp_update_port, pp_update_tx) {
             Err(BcError::IOError(_e)) => process::exit(1),
             _ => (),
         }
     }).ok();
 
-    thread::Builder::new().name("backup_ack_to_elevator".to_string()).spawn(move || {
-        match udpnet::bcast::tx(ack_port, backup_ack_rx) {
+    thread::Builder::new().name("backup_ack_to_primary".to_string()).spawn(move || {
+        match udpnet::bcast::tx(pp_ack_port, pp_ack_rx, true) {
             Err(BcError::IOError(_e)) => process::exit(1),
             _ => (),
         }
-
     }).ok();
 
     loop {
         select! {
-            recv(backup_recv_rx) -> data => {
+            recv(pp_update_rx) -> data => {
                 backup_data = data.clone().unwrap();
-                backup_ack_tx.send(backup_data.clone()).unwrap()
+                pp_ack_tx.send(backup_data.clone()).unwrap()
             },
             default(Duration::from_secs(2)) => {
-                break;
+                return backup_data
             }
         }
     }
-    backup_data
 }
 
 pub fn spawn_backup(
@@ -58,7 +56,7 @@ pub fn spawn_backup(
                 + " && "
                 + "cargo run"
                 + " --"
-                + " --elevnum "
+                + " --num "
                 + &elevnum.to_string()
                 + " --serverport "
                 + &server_port.to_string())
@@ -72,7 +70,7 @@ pub fn spawn_backup(
                 + " && "
                 + "cargo run"
                 + " --"
-                + " --elevnum "
+                + " --num "
                 + &elevnum.to_string()
                 + " --serverport "
                 + &server_port.to_string() + "\"")

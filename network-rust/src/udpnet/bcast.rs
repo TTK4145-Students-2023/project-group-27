@@ -38,8 +38,8 @@ impl<T> From<RecvError> for BcError<T> {
     }
 }
 
-pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>) -> Result<(), BcError<T>> {
-    let (s, addr) = sock::new_tx(port)?;
+pub fn tx<T: serde::Serialize>(port: u16, ch: cbc::Receiver<T>, localhost: bool) -> Result<(), BcError<T>> {
+    let (s, addr) = sock::new_tx(port, localhost)?;
     loop {
         let data = ch.recv()?;
         let serialized = serde_json::to_string(&data).unwrap();

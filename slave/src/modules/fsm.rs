@@ -30,6 +30,7 @@ pub fn main(
     let (new_request_tx, new_request_rx) = unbounded();
 
     let mut elevator = backup_data;
+    let num_floors = 4; // TODO: not this
 
     if elevator.behaviour == Behaviour::Moving {
         motor_direction_tx.send(elevator.direction).unwrap();
@@ -44,6 +45,7 @@ pub fn main(
                 let destination = msg.unwrap();
                 elevator.requests.add_request(destination, Call::Cab);
                 new_request_tx.send(true).unwrap();
+                button_light_tx.send((Request{ floor: destination, call: Call::Cab }, true)).unwrap();
             },
             recv(master_hall_requests_rx) -> msg => {
                 let message = msg.unwrap();
@@ -51,15 +53,17 @@ pub fn main(
                 if elevator.requests.has_unserved_requests() {
                     new_request_tx.send(true).unwrap();
                 }
-                for request_pair in elevator.requests.request_pair_iterator() {
-                    button_light_tx.send(request_pair).unwrap();
+                for floor in 0..num_floors {
+                    for call in Call::iter_hall() {
+                        button_light_tx.send((
+                            Request{ floor: floor, call: call }, 
+                            message.all_hall_requests[floor as usize][call as usize],
+                        )).unwrap();
+                    }
                 }
             },
             // channels for events in the state machine
             recv(new_request_rx) -> _ => {
-                for request_pair in elevator.requests.request_pair_iterator() {
-                    button_light_tx.send(request_pair).unwrap();
-                }
                 elevator.behaviour = match elevator.behaviour {
                     Behaviour::Idle => {
                         elevator.update_direction();

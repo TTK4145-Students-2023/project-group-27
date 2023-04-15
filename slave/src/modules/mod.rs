@@ -1,10 +1,9 @@
 use std::thread;
-use std::process::{self, Command};
+use std::process::Command;
 use std::fs;
 use std::path::PathBuf;
 
 use crossbeam_channel::{select, unbounded};
-use network_rust::udpnet;
 
 use crate::utilities::debug::Debug;
 
@@ -21,9 +20,9 @@ pub fn run() -> std::io::Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
-    let backup_port = config.network.backup_port;
-    let ack_port = config.network.ack_port;
-    let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port, ack_port));
+    let pp_update_port = config.network.pp_update_port;
+    let pp_ack_port = config.network.pp_ack_port;
+    let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, pp_update_port, pp_ack_port));
     let backup_data = handle.join().unwrap();
    
     // BECOME MAIN, CREATE NEW BACKUP
@@ -34,9 +33,9 @@ pub fn run() -> std::io::Result<()> {
     let (doors_closing_tx, doors_closing_rx) = unbounded();
     let (master_hall_requests_tx, master_hall_requests_rx) = unbounded();
     let (elevator_status_tx, elevator_status_rx) = unbounded();
-    let backup_send_rx = elevator_status_rx.clone();
 
     // INITIALIZE INPUTS MODULE
+    let config1 = config.clone();
     let (
         cab_button_rx, 
         hall_button_rx, 
@@ -49,9 +48,10 @@ pub fn run() -> std::io::Result<()> {
         door_light_tx,
         floor_indicator_tx,
     ) = io::init(
-        config.server,
-        config.elevator.clone(),
+        config1.server,
+        config1.elevator.clone(),
     )?;
+
 
     // INITIALIZE THREAD FOR DOOR EVENTS
     thread::Builder::new().name("doors".to_string()).spawn(move || doors::main(
@@ -77,34 +77,24 @@ pub fn run() -> std::io::Result<()> {
 
     // INITIALIZE NETWORK MODULE
     {
-        let elevator_settings = config.elevator.clone();
-        let network_config = config.network.clone();
+        let config = config.clone();
         let elevator_status_rx = elevator_status_rx.clone();
         thread::Builder::new().name("network".to_string()).spawn(move || network::main(
-            elevator_settings,
-            network_config,
+            config,
             hall_button_rx,
             master_hall_requests_tx,
             elevator_status_rx,
         ))?;
     }
 
-    // TODO: Why is this scoped? seems totally unneccessary
-    {
-        thread::Builder::new().name("backup_udp_sender".to_string()).spawn(move || {
-            if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
-                process::exit(1);
-            }
-        })?;
-    }
-
     let num_floors = config.elevator.num_floors;
     let mut debug = Debug::new(num_floors);
     let mut packetloss_active = false;
+    
     loop {
         select! {
             recv(elevator_status_rx) -> msg => {
-                debug.printstatus(&msg.unwrap()).unwrap();
+                //debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> msg => {
                 // apply 25% packet loss on master communication ports if in debug mode

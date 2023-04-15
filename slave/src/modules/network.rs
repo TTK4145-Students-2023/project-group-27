@@ -11,7 +11,7 @@ use std::time::Duration;
 use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
 use network_rust::udpnet;
 
-use shared_resources::config::{ElevatorConfig, NetworkConfig};
+use shared_resources::config::SlaveConfig;
 use shared_resources::request::Request;
 use shared_resources::elevator_message::ElevatorMessage;
 
@@ -20,8 +20,7 @@ use crate::utilities::elevator_status::ElevatorStatus;
 use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
-    elevator_settings: ElevatorConfig,
-    network_config: NetworkConfig,
+    config: SlaveConfig,
     hall_button_rx: Receiver<Request>,
     master_hall_requests_tx: Sender<MasterMessage>,
     elevator_status_rx: Receiver<ElevatorStatus>,
@@ -31,20 +30,29 @@ pub fn main(
     const TIMEOUT_BUFFERED_HALL_REQUESTS: u64 = 5;
 
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
+    {
+        let elevator_message_rx = elevator_message_rx.clone();
+        spawn(move || {
+            if udpnet::bcast::tx(config.network.update_port, elevator_message_rx, false).is_err() {
+                panic!("Could not establish sending connection with master. Port {} already in use?", config.network.update_port);
+            }
+        });
+    }
     spawn(move || {
-        if udpnet::bcast::tx(network_config.update_port, elevator_message_rx).is_err() {
-            panic!("Could not establish sending connection with master. Port {} already in use?", network_config.update_port);
+        println!("{:#?}", config.network.pp_update_port);
+        if udpnet::bcast::tx(config.network.pp_update_port, elevator_message_rx, true).is_err() {
+            panic!("Could not establish sending connection to process pair backup. Port {} already in use?", config.network.pp_update_port);
         }
     });
     
     let (command_tx, command_rx) = unbounded::<HashMap<String, Vec<Vec<bool>>>>();
     spawn(move || {
-        if udpnet::bcast::rx(network_config.command_port, command_tx).is_err() {
-            panic!("Could not establish receiving connection with master. Port {} already in use?", network_config.command_port);
+        if udpnet::bcast::rx(config.network.command_port, command_tx).is_err() {
+            panic!("Could not establish receiving connection with master. Port {} already in use?", config.network.command_port);
         }
     });
 
-    let num_floors = elevator_settings.num_floors;
+    let num_floors = config.elevator.num_floors;
 
     let mut hall_request_buffer = RequestBuffer::new(TIMEOUT_BUFFERED_HALL_REQUESTS);
     let mut elevator_behaviour = ElevatorStatus::new(num_floors);
@@ -57,7 +65,7 @@ pub fn main(
                 let master_message = MasterMessage::parse(
                     message, 
                     num_floors, 
-                    network_config.command_port.to_string().clone()
+                    config.elevnum.to_string().clone()
                 );
                 hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
                 master_hall_requests_tx.send(master_message).unwrap();
@@ -74,7 +82,7 @@ pub fn main(
                 hall_request_buffer.remove_timed_out_orders();
                 // send state and collected orders to master
                 let message = generate_elevator_message(
-                    network_config.command_port.to_string().clone(),
+                    config.elevnum.to_string().clone(),
                     elevator_behaviour.clone(),
                     &hall_request_buffer
                 );

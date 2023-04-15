@@ -1,5 +1,4 @@
 use shared_resources::call::Call;
-use shared_resources::request::Request;
 
 use crate::utilities::direction::Direction;
 
@@ -85,19 +84,6 @@ impl RequestCollection {
 
     pub fn get_requests_at_floor(&self, floor: u8) -> Vec<bool> {
         self.requests[floor as usize].clone()
-    }
-
-    pub fn request_pair_iterator(&self) -> Vec<(Request, bool)> {
-        let mut request_pairs = Vec::new();
-        for floor in 0..self.num_floors {
-            for call in Call::iter() {
-                request_pairs.push((Request {
-                    floor: floor,
-                    call: call,
-                }, self.requests[floor as usize][call as usize]));
-            }
-        }
-        request_pairs
     }
 
     pub fn has_unserved_requests(&self) -> bool {
