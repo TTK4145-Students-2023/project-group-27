@@ -67,7 +67,7 @@ pub fn spawn_backup(
             .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
                 + &program_path
                 + " && "
-                + "cargo run")
+                + "cargo run\"")
             .output()
             .expect("failed to start backup");
     }
