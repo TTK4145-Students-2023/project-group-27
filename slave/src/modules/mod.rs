@@ -7,7 +7,6 @@ use crossbeam_channel::{select, unbounded};
 use network_rust::udpnet;
 
 use crate::utilities::debug::Debug;
-use crate::utilities::elevator_status::ElevatorStatus;
 
 mod doors;
 mod io;
@@ -36,7 +35,7 @@ pub fn run() -> std::io::Result<()> {
     let (doors_closing_tx, doors_closing_rx) = unbounded();
     let (master_hall_requests_tx, master_hall_requests_rx) = unbounded();
     let (elevator_status_tx, elevator_status_rx) = unbounded();
-    let (backup_send_tx, backup_send_rx) = unbounded::<ElevatorStatus>();
+    let backup_send_rx = elevator_status_rx.clone();
 
     // INITIALIZE INPUTS MODULE
     let (
@@ -68,7 +67,6 @@ pub fn run() -> std::io::Result<()> {
         let elevator_settings = config.elevator.clone();
         thread::Builder::new().name("fsm".to_string()).spawn(move || fsm::main(
             backup_data,
-            backup_send_tx,
             elevator_settings,
             floor_sensor_rx,
             floor_indicator_tx,

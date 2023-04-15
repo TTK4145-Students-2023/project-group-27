@@ -16,12 +16,6 @@ use shared_resources::elevator_message::ElevatorMessage;
 
 use crate::utilities::hall_request_assigner::*;
 
-#[derive(Clone)]
-pub struct ElevatorData {
-    pub state: HRAElevState,
-    pub last_seen: Instant
-}
-
 pub fn main(
     backup_data: Vec<Vec<bool>>,
     config: MasterConfig,

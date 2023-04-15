@@ -17,7 +17,6 @@ use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
     backup_data: ElevatorStatus,
-    backup_send_tx: Sender<ElevatorStatus>,
     elevator_settings: ElevatorConfig,
     floor_sensor_rx: Receiver<u8>,
     floor_indicator_tx: Sender<u8>,
@@ -160,6 +159,5 @@ pub fn main(
             recv(timer) -> _ => (),
         }
         elevator_status_tx.send(elevator.clone()).unwrap();
-        backup_send_tx.send(elevator.clone()).unwrap();
     }
 }
