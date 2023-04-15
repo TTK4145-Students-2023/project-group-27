@@ -87,9 +87,6 @@ pub fn main(
                 }
 
                 // remove served hall orders
-                // for order in msg.clone().unwrap().served_hall_orders {
-                //     hall_requests[order.floor as usize][order.call as usize] = false;
-                // }
                 if behaviour == "doorOpen" {
                     let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
                     hall_requests[floor as usize][call as usize] = false;

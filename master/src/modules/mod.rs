@@ -26,7 +26,6 @@ pub fn run() -> Result<()> {
     //let ack_port = config.network.ack_port;
     let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port));
     let backup_data = handle.join().unwrap();
-    // BECOME PRIMARY, CREATE NEW BACKUP
 
     backup::spawn_backup(program_path);
 
@@ -51,8 +50,6 @@ pub fn run() -> Result<()> {
     {
         thread::Builder::new().name("master to backup".to_string()).spawn(move || {
             if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
-                // crash program if creating the socket fails (`bcast:tx` will always block if the
-                // initialization succeeds)
                 process::exit(1);
             }
         })?;

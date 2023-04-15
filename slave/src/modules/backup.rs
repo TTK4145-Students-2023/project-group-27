@@ -9,7 +9,7 @@ use network_rust::udpnet::{self, bcast::BcError};
 use crate::utilities::elevator_status::ElevatorStatus;
 
 pub fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
-    println!("BACKUP MODE for port: {:#?}\n-----------------",backup_port);
+    println!("SLAVE BACKUP ON PORT: {:#?}\n------------------------",backup_port);
     let mut backup_data: ElevatorStatus = ElevatorStatus::new(num_floors);
 
     let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();

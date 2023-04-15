@@ -21,7 +21,6 @@ pub fn run() -> std::io::Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
-    println!("{:#?}",program_path);
     let backup_port = config.network.backup_port;
     let ack_port = config.network.ack_port;
     let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port, ack_port));
