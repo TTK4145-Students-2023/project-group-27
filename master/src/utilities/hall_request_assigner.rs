@@ -6,6 +6,13 @@
 
 use std::collections::HashMap;
 use std::process::Command;
+use std::time::Instant;
+
+#[derive(Clone)]
+pub struct ElevatorData {
+    pub state: HRAElevState,
+    pub last_seen: Instant
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]

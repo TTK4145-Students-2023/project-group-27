@@ -1,8 +1,8 @@
 /// ----- NETWORK MODULE -----
-/// This module is responsible for collecting requests from the request module,
+/// This module is responsible for collecting hall requests from the io module,
 /// states from the FSM module, and sending these to the master node. It also
-/// parses messages from the master node and distributes this elevator's orders
-/// to the requests node.
+/// parses messages from the master node and delivers this elevator's orders
+/// as decided by master to the fsm module for execution.
 
 use std::thread::spawn;
 use std::collections::HashMap;
@@ -26,9 +26,9 @@ pub fn main(
     master_hall_requests_tx: Sender<MasterMessage>,
     elevator_status_rx: Receiver<ElevatorStatus>,
 ) {
-    let update_master = tick(Duration::from_secs_f64(0.1));
+    let update_master_ticker = tick(Duration::from_secs_f64(0.1));
 
-    const TIMEOUT: u64 = 5;
+    const TIMEOUT_BUFFERED_HALL_REQUESTS: u64 = 5;
 
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     spawn(move || {
@@ -46,7 +46,7 @@ pub fn main(
 
     let num_floors = elevator_settings.num_floors;
 
-    let mut hall_request_buffer = RequestBuffer::new(TIMEOUT);
+    let mut hall_request_buffer = RequestBuffer::new(TIMEOUT_BUFFERED_HALL_REQUESTS);
     let mut elevator_behaviour = ElevatorStatus::new(num_floors);
     
     loop {
@@ -54,7 +54,11 @@ pub fn main(
             recv(command_rx) -> msg => {
                 // decode command message from master
                 let message = msg.unwrap();
-                let master_message = MasterMessage::parse(message, num_floors, network_config.command_port.to_string().clone());
+                let master_message = MasterMessage::parse(
+                    message, 
+                    num_floors, 
+                    network_config.command_port.to_string().clone()
+                );
                 hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
                 master_hall_requests_tx.send(master_message).unwrap();
             },
@@ -65,7 +69,7 @@ pub fn main(
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
             } 
-            recv(update_master) -> _ => {
+            recv(update_master_ticker) -> _ => {
                 // remove timed out orders
                 hall_request_buffer.remove_timed_out_orders();
                 // send state and collected orders to master

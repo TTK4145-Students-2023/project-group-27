@@ -39,8 +39,8 @@ pub fn init(
     {
         let (call_button_tx, call_button_rx) = unbounded();
         let elevator = elevator.clone();
-        thread::Builder::new().name("call_buttons".to_string()).spawn(move || poll::call_buttons(elevator, call_button_tx, poll_period))?;
-        thread::Builder::new().name("cab_buttons".to_string()).spawn(move || { loop {
+        thread::Builder::new().name("pull_call_buttons".to_string()).spawn(move || poll::call_buttons(elevator, call_button_tx, poll_period))?;
+        thread::Builder::new().name("call_buttons".to_string()).spawn(move || { loop {
             let button_call = Request::from_elev(call_button_rx.recv().unwrap());
             match button_call.call {
                 Call::Cab => cab_button_tx.send(button_call.floor).unwrap(),

@@ -12,7 +12,7 @@ use crossterm::{cursor, terminal, Result, ExecutableCommand};
 
 use shared_resources::call::Call;
 
-use crate::network::ElevatorData;
+use crate::utilities::hall_request_assigner::ElevatorData;
 
 const STATUS_SIZE: u16 = 20;
 

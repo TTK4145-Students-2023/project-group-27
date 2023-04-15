@@ -13,7 +13,8 @@ impl RequestBuffer {
     pub fn new(timeout: u64) -> Self {
         RequestBuffer { 
             new_requests: Vec::new(), 
-            new_request_timers: Vec::new(),            timeout: timeout,
+            new_request_timers: Vec::new(),
+            timeout: timeout,
         }
     }
 
