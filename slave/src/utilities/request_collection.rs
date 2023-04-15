@@ -3,14 +3,14 @@ use shared_resources::call::Call;
 use crate::utilities::direction::Direction;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct Requests {
+pub struct RequestCollection {
     requests: Vec<Vec<bool>>,
     num_floors: u8,
 }
 
-impl Requests {
+impl RequestCollection {
     pub fn new(num_floors: u8) -> Self {
-        Requests {
+        RequestCollection {
             num_floors: num_floors,
             requests: vec![vec![false; Call::num_calls() as usize]; num_floors as usize],
         }
@@ -41,9 +41,9 @@ impl Requests {
     }
 
     pub fn should_stop(&self, floor: u8, direction: Direction) -> bool {
-        if Self::cab_request_at_floor(self, floor)
-        || Self::requests_in_direction_at_this_floor(self, floor, direction)
-        || !Self::further_requests_in_direction(self, floor, direction) {
+        if self.cab_request_at_floor(floor)
+        || self.requests_in_direction_at_this_floor(floor, direction)
+        || !self.further_requests_in_direction(floor, direction) {
             return true
         }
         false
@@ -71,14 +71,10 @@ impl Requests {
     }
 
     pub fn next_direction(&self, floor: u8, last_direction: Direction) -> Option<Direction> {
-        let hall_button = if last_direction == Direction::Up { Call::HallUp } else { Call::HallDown };
         let other_direction = if last_direction == Direction::Up { Direction::Down } else { Direction::Up };
-        let other_hall_button = if last_direction == Direction::Up { Call::HallDown } else { Call::HallUp };
-        if Self::further_requests_in_direction(self, floor, last_direction) 
-            || self.requests[floor as usize][hall_button as usize]{
+        if Self::further_requests_in_direction(self, floor, last_direction) {
             return Some(last_direction)
-        } else if Self::further_requests_in_direction(self, floor, other_direction)
-            || self.requests[floor as usize][other_hall_button as usize] {
+        } else if Self::further_requests_in_direction(self, floor, other_direction) {
             return Some(other_direction)
         }
         None

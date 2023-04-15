@@ -1,11 +1,10 @@
 use std::thread;
 use std::process::{self, Command};
-use std::time::Duration;
 use std::fs;
 use std::path::PathBuf;
 
 use crossbeam_channel::{select, unbounded};
-use network_rust::udpnet::{self, bcast::BcError};
+use network_rust::udpnet;
 
 use crate::utilities::debug::Debug;
 use crate::utilities::elevator_status::ElevatorStatus;
@@ -14,53 +13,11 @@ mod doors;
 mod io;
 mod fsm;
 mod network;
-
-fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
-    println!("BACKUP MODE for port: {:#?}\n-----------------",backup_port);
-    let mut backup_data: ElevatorStatus = ElevatorStatus::new(num_floors);
-
-    let (backup_recv_tx, backup_recv_rx) = unbounded::<ElevatorStatus>();
-    let (backup_ack_tx, backup_ack_rx) = unbounded::<ElevatorStatus>();
-    thread::Builder::new().name("backup_recieve_from_elevator".to_string()).spawn(move || {
-        match udpnet::bcast::rx(backup_port, backup_recv_tx) {
-            Err(BcError::IOError(_e)) => process::exit(1),
-            _ => (),
-        }
-    }).ok();
-
-    thread::Builder::new().name("backup_ack_to_elevator".to_string()).spawn(move || {
-        //panic::set_hook(Box::new(|_| {println!("Went from backup to master")}));
-        match udpnet::bcast::tx(ack_port, backup_ack_rx) {
-            Err(BcError::IOError(_e)) => process::exit(1),
-            _ => (),
-        }
-        //let _ = panic::take_hook();
-    }).ok();
-
-
-    //let config = shared_resources::config::SlaveConfig::get();
-    //let num_floors = config.elevator.num_floors;
-    //let mut backup_debug = Debug::new(num_floors);
-
-    loop {
-        select! {
-            recv(backup_recv_rx) -> data => {
-                //backup_debug.printstatus(&data.clone().unwrap()).unwrap();
-                backup_data = data.clone().unwrap();
-                backup_ack_tx.send(backup_data.clone()).unwrap()
-            },
-            default(Duration::from_secs(2)) => {
-                break;
-            }
-        }
-    }
-    backup_data
-}
+mod backup;
 
 pub fn run() -> std::io::Result<()> {    
     // READ CONFIGURATION
     let config = shared_resources::config::SlaveConfig::get();
-
     println!("elevnum: {}, serverport: {}", config.elevnum, config.server.port);
 
     let program_dir = PathBuf::from("./.");
@@ -68,41 +25,11 @@ pub fn run() -> std::io::Result<()> {
     println!("{:#?}",program_path);
     let backup_port = config.network.backup_port;
     let ack_port = config.network.ack_port;
-    let handle = thread::spawn(move || backup(config.elevator.num_floors, backup_port, ack_port));
+    let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port, ack_port));
     let backup_data = handle.join().unwrap();
+   
     // BECOME MAIN, CREATE NEW BACKUP
-
-    if cfg!(target_os = "linux") {
-        Command::new("gnome-terminal")
-            .arg("--")
-            .arg("/bin/sh")
-            .arg("-c")
-            .arg("cd ".to_owned()
-                + &program_path
-                + " && "
-                + "cargo run"
-                + " --"
-                + " --elevnum "
-                + &config.elevnum.to_string()
-                + " --serverport "
-                + &config.server.port.to_string())
-            .output()
-            .expect("failed to start backup");
-    } else if cfg!(target_os = "macos") {
-        Command::new("osascript")
-            .arg("-e")
-            .arg("tell app \"Terminal\" to do script \"cd ".to_owned() 
-                + &program_path
-                + " && "
-                + "cargo run"
-                + " --"
-                + " --elevnum "
-                + &config.elevnum.to_string()
-                + " --serverport "
-                + &config.server.port.to_string() + "\"")
-            .output()
-            .expect("failed to start backup");
-    }
+    backup::spawn_backup(program_path, config.elevnum, config.server.port);
 
     // INITIALIZE CHANNELS
     let (doors_activate_tx, doors_activate_rx) = unbounded();
@@ -111,7 +38,6 @@ pub fn run() -> std::io::Result<()> {
     let (elevator_status_tx, elevator_status_rx) = unbounded();
     let (backup_send_tx, backup_send_rx) = unbounded::<ElevatorStatus>();
 
-    
     // INITIALIZE INPUTS MODULE
     let (
         cab_button_rx, 
@@ -170,9 +96,7 @@ pub fn run() -> std::io::Result<()> {
         ))?;
     }
 
-    let num_floors = config.elevator.num_floors;
-    let mut debug = Debug::new(num_floors);
-
+    // TODO: Why is this scoped? seems totally unneccessary
     {
         thread::Builder::new().name("backup_udp_sender".to_string()).spawn(move || {
             if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
@@ -183,16 +107,19 @@ pub fn run() -> std::io::Result<()> {
         })?;
     }
 
-    let mut pl_active = false;
+    let num_floors = config.elevator.num_floors;
+    let mut debug = Debug::new(num_floors);
+    let mut packetloss_active = false;
     loop {
         select! {
             recv(elevator_status_rx) -> msg => {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> msg => {
-                if msg.unwrap() {
+                // apply 25% packet loss on master communication ports if in debug mode
+                if msg.unwrap() && cfg!(debug_assertions) {
                     let exec_path = "packetloss";
-                    let command = match pl_active {
+                    let command = match packetloss_active {
                         false => "sudo ".to_owned() 
                                 + exec_path 
                                 + " -p " + &config.network.command_port.to_string()
@@ -207,12 +134,9 @@ pub fn run() -> std::io::Result<()> {
                         .arg(command)
                         .output()
                         .expect("failed to induce packetloss ");
-                    pl_active = !pl_active;
-                    stop_button_light_tx.send(pl_active).unwrap();
-                    //println!("STOPPING PROGRAM...");
-                    //return Ok(())
+                    packetloss_active = !packetloss_active;
+                    stop_button_light_tx.send(packetloss_active).unwrap();
                 }
-                
             }
         }
     }
