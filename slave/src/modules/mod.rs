@@ -29,7 +29,6 @@ fn backup(num_floors: u8, backup_port: u16, ack_port: u16) -> ElevatorStatus {
     }).ok();
 
     thread::Builder::new().name("backup_ack_to_elevator".to_string()).spawn(move || {
-        //panic::set_hook(Box::new(|_| {println!("Went from backup to master")}));
         match udpnet::bcast::tx(ack_port, backup_ack_rx) {
             Err(BcError::IOError(_e)) => process::exit(1),
             _ => (),
@@ -176,8 +175,6 @@ pub fn run() -> std::io::Result<()> {
     {
         thread::Builder::new().name("backup_udp_sender".to_string()).spawn(move || {
             if udpnet::bcast::tx(backup_port, backup_send_rx).is_err() {
-                // crash program if creating the socket fails (`bcast:tx` will always block if the
-                // initialization succeeds)
                 process::exit(1);
             }
         })?;
@@ -209,8 +206,6 @@ pub fn run() -> std::io::Result<()> {
                         .expect("failed to induce packetloss ");
                     pl_active = !pl_active;
                     stop_button_light_tx.send(pl_active).unwrap();
-                    //println!("STOPPING PROGRAM...");
-                    //return Ok(())
                 }
                 
             }

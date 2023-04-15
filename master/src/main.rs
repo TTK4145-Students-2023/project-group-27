@@ -15,7 +15,6 @@ use master::utilities::debug;
 use network_rust::udpnet;
 use network_rust::udpnet::bcast::BcError;
 
-
 fn backup(num_floors: u8, backup_port: u16) -> Vec<Vec<bool>> {
     println!("BACKUP MODE for master: {:#?}\n-----------------",backup_port);
     let mut backup_data: Vec<Vec<bool>> = vec![vec![false; Call::num_hall_calls() as usize]; num_floors as usize];

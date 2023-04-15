@@ -70,21 +70,35 @@ pub fn main(
                 let cab_requests = msg.clone().unwrap().cab_requests;
 
                 // update elevator information data structure
-                connected_elevators.insert(id.clone(), ElevatorData{
-                    state: HRAElevState { 
-                        behaviour: behaviour.clone(), 
-                        floor: floor, 
-                        direction: direction.clone(), 
-                        cab_requests: cab_requests
-                    },
-                    last_seen: Instant::now()
-                    // last_seen: if behaviour == "moving" && floor == connected_elevators[&id.clone()].state.floor{ 
-                    //     connected_elevators[&id].last_seen 
-                    // } 
-                    // else {
-                    //     Instant::now()
-                    // }
-                });
+                if connected_elevators.contains_key(&id.clone()) {
+                    connected_elevators.insert(id.clone(), ElevatorData{
+                        state: HRAElevState { 
+                            behaviour: behaviour.clone(), 
+                            floor: floor, 
+                            direction: direction.clone(), 
+                            cab_requests: cab_requests
+                        },
+                        last_seen: if behaviour == "moving" && floor == connected_elevators[&id.clone()].state.floor {
+                            connected_elevators[&id].last_seen
+                        } else {
+                            Instant::now()
+                        }
+                    });
+                    
+                }
+                else {
+                    if behaviour != "moving" {
+                        connected_elevators.insert(id.clone(), ElevatorData{
+                            state: HRAElevState { 
+                                behaviour: behaviour.clone(), 
+                                floor: floor, 
+                                direction: direction.clone(), 
+                                cab_requests: cab_requests
+                            },
+                            last_seen: Instant::now()
+                        });
+                    }
+                }
 
                 // collect new hall orders
                 for order in msg.clone().unwrap().new_hall_orders {
