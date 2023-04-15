@@ -38,9 +38,10 @@ pub fn main(
             }
         });
     }
+    let (pp_update_tx, pp_update_rx) = unbounded::<ElevatorStatus>();
     spawn(move || {
         println!("{:#?}", config.network.pp_update_port);
-        if udpnet::bcast::tx(config.network.pp_update_port, elevator_message_rx, true).is_err() {
+        if udpnet::bcast::tx(config.network.pp_update_port, pp_update_rx, true).is_err() {
             panic!("Could not establish sending connection to process pair backup. Port {} already in use?", config.network.pp_update_port);
         }
     });
@@ -87,6 +88,7 @@ pub fn main(
                     &hall_request_buffer
                 );
                 elevator_message_tx.send(message).unwrap();
+                pp_update_tx.send(elevator_behaviour.clone()).unwrap();
             }
         }
     }

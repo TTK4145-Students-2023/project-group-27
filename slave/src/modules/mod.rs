@@ -94,7 +94,7 @@ pub fn run() -> std::io::Result<()> {
     loop {
         select! {
             recv(elevator_status_rx) -> msg => {
-                //debug.printstatus(&msg.unwrap()).unwrap();
+                debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> msg => {
                 // apply 25% packet loss on master communication ports if in debug mode
