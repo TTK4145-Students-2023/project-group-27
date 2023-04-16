@@ -78,19 +78,28 @@ pub fn main(
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
             } 
-            recv(update_master_ticker) -> _ => {
-                // remove timed out orders
-                hall_request_buffer.remove_timed_out_orders();
-                // send state and collected orders to master
-                let message = generate_elevator_message(
-                    config.elevnum.to_string().clone(),
-                    elevator_behaviour.clone(),
-                    &hall_request_buffer
-                );
-                elevator_message_tx.send(message).unwrap();
-                pp_update_tx.send(elevator_behaviour.clone()).unwrap();
-            }
+            // recv(update_master_ticker) -> _ => {
+            //     // remove timed out orders
+            //     hall_request_buffer.remove_timed_out_orders();
+            //     // send state and collected orders to master
+            //     let message = generate_elevator_message(
+            //         config.elevnum.to_string().clone(),
+            //         elevator_behaviour.clone(),
+            //         &hall_request_buffer
+            //     );
+            //     elevator_message_tx.send(message).unwrap();
+            //     pp_update_tx.send(elevator_behaviour.clone()).unwrap();
+            // }
         }
+        hall_request_buffer.remove_timed_out_orders();
+        // send state and collected orders to master
+        let message = generate_elevator_message(
+            config.elevnum.to_string().clone(),
+            elevator_behaviour.clone(),
+            &hall_request_buffer
+        );
+        elevator_message_tx.send(message).unwrap();
+        pp_update_tx.send(elevator_behaviour.clone()).unwrap();
     }
 }
 

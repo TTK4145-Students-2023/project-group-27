@@ -93,15 +93,15 @@ pub fn main(
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
-                // collect new hall orders
-                for order in msg.clone().unwrap().new_hall_orders {
-                    hall_requests[order.floor as usize][order.call as usize] = true;
-                }
-
                 // remove served hall orders
                 if behaviour == "doorOpen" {
                     let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
                     hall_requests[floor as usize][call as usize] = false;
+                }
+                
+                // collect new hall orders
+                for order in msg.clone().unwrap().new_hall_orders {
+                    hall_requests[order.floor as usize][order.call as usize] = true;
                 }
 
                 // assign hall orders only to available elevators

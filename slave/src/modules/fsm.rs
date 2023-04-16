@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use crossbeam_channel::{select, Receiver, Sender, tick, unbounded};
+use crossbeam_channel::{select, Receiver, Sender, unbounded};
 
 use shared_resources::call::Call;
 use shared_resources::request::Request;
@@ -26,7 +26,7 @@ pub fn main(
     master_hall_requests_rx: Receiver<MasterMessage>,
     elevator_status_tx: Sender<ElevatorStatus>,
 ) {
-    let timer = tick(Duration::from_secs_f64(0.1));
+    let timer = Duration::from_millis(100);
     let (new_request_tx, new_request_rx) = unbounded::<bool>();
 
     let mut elevator = backup_data;
@@ -136,7 +136,7 @@ pub fn main(
                     Behaviour::Idle | Behaviour::Moving => elevator.behaviour,
                 }
             },
-            recv(timer) -> _ => (),
+            default(timer) => (),
         }
         elevator_status_tx.send(elevator.clone()).unwrap();
     }
