@@ -113,7 +113,6 @@ pub fn init(
         }})?;
     }
 
-    // DRIVE ELEVATOR TO FLOOR
     if elevator.floor_sensor().is_none() {
         motor_direction_tx.send(Direction::Down).unwrap();
     }

@@ -13,6 +13,7 @@ use crate::utilities::elevator_status::{ElevatorStatus, Behaviour};
 use crate::utilities::master_message::MasterMessage;
 
 pub fn main(
+    num_floors: u8,
     backup_data: ElevatorStatus,
     floor_sensor_rx: Receiver<u8>,
     floor_indicator_tx: Sender<u8>,
@@ -27,7 +28,6 @@ pub fn main(
     let (new_request_tx, new_request_rx) = unbounded::<bool>();
 
     let mut elevator = backup_data;
-    let num_floors = 4; // TODO: not this
 
     if elevator.behaviour == Behaviour::Moving {
         motor_direction_tx.send(elevator.direction).unwrap();
@@ -112,7 +112,6 @@ pub fn main(
                     Behaviour::DoorOpen => {
                         elevator.update_direction();
                         if elevator.should_stop() && elevator.requests_at_this_floor() {
-                            println!("Doors should close");
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request {

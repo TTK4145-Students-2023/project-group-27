@@ -3,7 +3,6 @@
         "update_ports": [19730, 19731, 19732],
         "command_ports": [19740, 19741, 19742],
         "slave_pp_update_ports": [19750, 19751, 19752],
-        "slave_pp_ack_ports": [19760, 19761, 19762],
         "backup_update_ports": [19770],
         "backup_ack_ports": [19780],
         "master_pp_ports": [19790],

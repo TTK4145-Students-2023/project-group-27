@@ -82,14 +82,12 @@ pub fn main(
     loop {
         select! {
             recv(elevator_message_rx) -> msg => {
-                // decode message
                 let id = msg.clone().unwrap().id;
                 let behaviour = msg.clone().unwrap().behaviour;
                 let floor = msg.clone().unwrap().floor;
                 let direction = msg.clone().unwrap().direction;
                 let cab_requests = msg.clone().unwrap().cab_requests;
 
-                // update elevator information data structure
                 connected_elevators.entry(id.clone()).or_insert(ElevatorData{
                     state: HRAElevState { 
                         behaviour: behaviour.clone(), 
@@ -109,25 +107,22 @@ pub fn main(
                     },
                     last_seen: Instant::now(),
                     last_available: 
-                        if behaviour != connected_elevators[&id].state.behaviour // changed state
-                            || behaviour == "idle" // is idle
-                            || floor != connected_elevators[&id].state.floor // moved to another floor
+                        if behaviour != connected_elevators[&id].state.behaviour
+                            || behaviour == "idle"
+                            || floor != connected_elevators[&id].state.floor
                             || direction != connected_elevators[&id].state.direction
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
-                // remove served hall orders
                 if behaviour == "doorOpen" {
                     let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
                     served_hall_request_buffer.insert_new_request(Request { floor: floor, call: call });
                 }
                 
-                // collect new hall orders
                 for request in msg.clone().unwrap().new_hall_orders {
                     new_hall_request_buffer.insert_new_request(request);
                 }
 
-                // assign hall orders only to available elevators
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
                     if data.last_available.elapsed() < Duration::from_secs_f64(SLAVE_TIMEOUT) {
@@ -139,16 +134,13 @@ pub fn main(
                     Err(_) => continue,
                 };
 
-                // broadcast assigned orders
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
 
-                // send new and served orders to backup
                 backup_changed_requests_tx.send((
                     new_hall_request_buffer.get_new_requests(),
                     served_hall_request_buffer.get_new_requests()
                 )).unwrap();
             },
-            // receive from backup
             recv(backup_confirmed_orders_rx) -> msg => {
                 hall_requests = msg.unwrap();
                 new_hall_request_buffer.remove_confirmed_requests(&hall_requests);
@@ -161,7 +153,6 @@ pub fn main(
                 served_hall_request_buffer.remove_confirmed_requests(&inverted_hall_requests);
             },
             recv(timer) -> _ => {
-                // remove lost elevators
                 for id in connected_elevators.clone().keys() {
                     if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(SLAVE_TIMEOUT) {
                         connected_elevators.remove(id);
@@ -171,6 +162,6 @@ pub fn main(
             }
         }
         command_tx.send(output.clone()).unwrap();
-        process_pair_tx.send(true).unwrap(); // ping process pair
+        process_pair_tx.send(true).unwrap();
     }
 }

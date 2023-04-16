@@ -19,7 +19,6 @@ pub fn main(
     loop {
         select! {
             recv(obstruction_rx) -> msg => {
-                // received obstruction -> block this thread if doors are open
                 active = msg.unwrap();
             },
             recv(doors_activate_rx) -> _ => {

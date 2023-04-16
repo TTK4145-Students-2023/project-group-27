@@ -18,7 +18,6 @@ pub fn main() -> Result<()> {
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
-    println!("{:#?}", program_path);
     let process_pair_port = config.network.pp_port;
     let process_pair_handle = thread::spawn(move || process_pair::process_pair(num_floors, process_pair_port));
     let mut backup_data = process_pair_handle.join().unwrap();

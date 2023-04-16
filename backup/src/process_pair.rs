@@ -10,7 +10,7 @@ use network_rust::udpnet;
 use network_rust::udpnet::bcast::BcError;
 
 pub fn process_pair(num_floors: u8, process_pair_port: u16) -> Vec<Vec<bool>> {
-    println!("BACKUP PROCESS PAIR ON PORT: {:#?}\n---------------------", process_pair_port);
+    println!("BACKUP process pair running on port: {:#?}\n---------------------", process_pair_port);
 
     let (process_pair_tx, process_pair_rx) = unbounded::<Vec<Vec<bool>>>();
     thread::Builder::new().name("process_pair_recieve_from_master".to_string()).spawn(move || {

@@ -9,7 +9,7 @@ use network_rust::udpnet;
 use network_rust::udpnet::bcast::BcError;
 
 pub fn process_pair(process_pair_port: u16) {
-    println!("MASTER PROCESS PAIR ON PORT: {:#?}\n---------------------", process_pair_port);
+    println!("MASTER process pair running on port: {:#?}\n---------------------", process_pair_port);
 
     let (process_pair_tx, process_pair_rx) = unbounded::<bool>();
     thread::Builder::new().name("process_pair_recieve_from_master".to_string()).spawn(move || {
@@ -21,9 +21,7 @@ pub fn process_pair(process_pair_port: u16) {
 
     loop {
         select! {
-            recv(process_pair_rx) -> _ => {
-                // master is alive -> do nothing
-            },
+            recv(process_pair_rx) -> _ => (),
             default(Duration::from_secs(2)) => {
                 return
             }

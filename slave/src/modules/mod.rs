@@ -11,30 +11,25 @@ mod doors;
 mod io;
 mod fsm;
 mod network;
-mod backup;
+mod process_pair;
 
-pub fn run() -> std::io::Result<()> {    
-    // READ CONFIGURATION
+pub fn run() -> std::io::Result<()> {
     let config = shared_resources::config::SlaveConfig::get();
     println!("elevnum: {}, serverport: {}", config.elevnum, config.server.port);
 
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     let pp_update_port = config.network.pp_update_port;
-    let pp_ack_port = config.network.pp_ack_port;
-    let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, pp_update_port, pp_ack_port));
+    let handle = thread::spawn(move || process_pair::process_pair(config.elevator.num_floors, pp_update_port));
     let backup_data = handle.join().unwrap();
    
-    // BECOME MAIN, CREATE NEW BACKUP
-    backup::spawn_backup(program_path, config.elevnum, config.server.port);
+    process_pair::spawn_process_pair(program_path, config.elevnum, config.server.port);
 
-    // INITIALIZE CHANNELS
     let (doors_activate_tx, doors_activate_rx) = unbounded();
     let (doors_closing_tx, doors_closing_rx) = unbounded();
     let (master_hall_requests_tx, master_hall_requests_rx) = unbounded();
     let (elevator_status_tx, elevator_status_rx) = unbounded();
 
-    // INITIALIZE INPUTS MODULE
     let config1 = config.clone();
     let (
         cab_button_rx, 
@@ -52,8 +47,6 @@ pub fn run() -> std::io::Result<()> {
         config1.elevator.clone(),
     )?;
 
-
-    // INITIALIZE THREAD FOR DOOR EVENTS
     thread::Builder::new().name("doors".to_string()).spawn(move || doors::main(
         obstruction_rx,
         doors_activate_rx,
@@ -61,8 +54,9 @@ pub fn run() -> std::io::Result<()> {
         door_light_tx
     ))?;
 
-    // INITIALIZE THREAD FOR STATE MACHINE
+    let num_floors = config.elevator.num_floors;
     thread::Builder::new().name("fsm".to_string()).spawn(move || fsm::main(
+        num_floors,
         backup_data,
         floor_sensor_rx,
         floor_indicator_tx,
@@ -75,7 +69,6 @@ pub fn run() -> std::io::Result<()> {
         elevator_status_tx,
     ))?;
 
-    // INITIALIZE NETWORK MODULE
     {
         let config = config.clone();
         let elevator_status_rx = elevator_status_rx.clone();
@@ -87,7 +80,6 @@ pub fn run() -> std::io::Result<()> {
         ))?;
     }
 
-    let num_floors = config.elevator.num_floors;
     let mut debug = Debug::new(num_floors);
     let mut packetloss_active = false;
     
@@ -97,7 +89,6 @@ pub fn run() -> std::io::Result<()> {
                 debug.printstatus(&msg.unwrap()).unwrap();
             },
             recv(stop_button_rx) -> msg => {
-                // apply 25% packet loss on master communication ports if in debug mode
                 if msg.unwrap() && cfg!(debug_assertions) {
                     let exec_path = "packetloss";
                     let command = match packetloss_active {

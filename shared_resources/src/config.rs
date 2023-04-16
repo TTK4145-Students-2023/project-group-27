@@ -1,3 +1,7 @@
+/// ----- CONFIG -----
+/// This module reads the configuration file to gather what ports
+/// to use and the number of floors.
+
 use std::fs;
 use std::collections::HashMap;
 use std::env;
@@ -21,7 +25,6 @@ pub struct NetworkConfig {
     pub update_port: u16,
     pub command_port: u16,
     pub pp_update_port: u16,
-    pub pp_ack_port: u16
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +99,6 @@ impl SlaveConfig {
                 update_port: config_file.network["update_ports"][elevnum as usize], 
                 command_port: config_file.network["command_ports"][elevnum as usize],
                 pp_update_port: config_file.network["slave_pp_update_ports"][elevnum as usize],
-                pp_ack_port: config_file.network["slave_pp_ack_ports"][elevnum as usize]
             },
             server: ServerConfig { 
                 port: serverport,

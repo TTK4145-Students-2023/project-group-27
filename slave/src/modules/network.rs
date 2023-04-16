@@ -67,7 +67,6 @@ pub fn main(
     loop {
         select! {
             recv(command_rx) -> msg => {
-                // decode command message from master
                 let message = msg.unwrap();
                 let master_message = MasterMessage::parse(
                     message, 
@@ -81,12 +80,11 @@ pub fn main(
                 master_connected = true;
             },
             recv(hall_button_rx) -> hall_request => {
-                // append new hall order to queue
                 hall_request_buffer.insert_new_request(hall_request.unwrap());
             },
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
-            } 
+            },
             default(timer) => {
                 hall_request_buffer.remove_timed_out_orders();
                 let message = generate_elevator_message(
@@ -105,7 +103,6 @@ pub fn main(
                 }
             },
         }
-        
     }
 }
 
