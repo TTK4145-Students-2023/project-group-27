@@ -12,8 +12,7 @@ If running on the lab, all prerequisites should be installed.
 
 ## Running the program
 
-Configuration options can be set in a configuration file `config.json` 
-by cloning the default `_config.json` file.
+Configuration options can be set in a configuration file `config.json` by cloning the default `_config.json` file.
 If no `config.json` is provided, the default will be used and should work with up to 3 elevators running simultaneously on the same computer provided the command line arguments are used correctly:
 
 The following command line arguments are accepted
