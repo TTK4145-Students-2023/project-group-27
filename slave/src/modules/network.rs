@@ -58,6 +58,11 @@ pub fn main(
     let mut hall_request_buffer = RequestBuffer::new(TIMEOUT_BUFFERED_HALL_REQUESTS);
     let mut elevator_behaviour = ElevatorStatus::new(num_floors);
     
+    const MASTER_TIMEOUT = 3;
+    let mut last_seen_master = Instant::now();
+    let mut master_connected = false;
+    let mut last_master_message = MasterMessage { Vec::new(), Vec::new() };
+
     loop {
         select! {
             recv(command_rx) -> msg => {
@@ -70,6 +75,9 @@ pub fn main(
                 );
                 hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
                 master_hall_requests_tx.send(master_message).unwrap();
+                last_master_message = master_message;
+                last_seen_master = Instant::now();
+                master_connected = true;
             },
             recv(hall_button_rx) -> hall_request => {
                 // append new hall order to queue
@@ -90,6 +98,13 @@ pub fn main(
                 elevator_message_tx.send(message).unwrap();
                 pp_update_tx.send(elevator_behaviour.clone()).unwrap();
             }
+        }
+        if master_connected && last_seen_master.elapsed() > Duration::from_secs(MASTER_TIMEOUT) {
+            master_connected = false;
+            master_hall_requests_tx.send(MasterMessage {
+                our_hall_requests: last_master_message.all_hall_requests(),
+                all_hall_requests: last_master_message.all_hall_requests(),
+            });
         }
     }
 }
