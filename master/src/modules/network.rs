@@ -112,6 +112,7 @@ pub fn main(
                         if behaviour != connected_elevators[&id].state.behaviour // changed state
                             || behaviour == "idle" // is idle
                             || floor != connected_elevators[&id].state.floor // moved to another floor
+                            || direction != connected_elevators[&id].state.direction
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
