@@ -50,7 +50,7 @@ pub fn main(
         }
     }).unwrap();
     
-    let timeout: f64 = 2.5 * config.elevator.num_floors as f64;
+    const TIMEOUT: f64 = 4 as f64;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
@@ -107,7 +107,7 @@ pub fn main(
                 // assign hall orders only to available elevators
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
-                    if data.last_available.elapsed() < Duration::from_secs_f64(timeout) {
+                    if data.last_available.elapsed() < Duration::from_secs_f64(TIMEOUT) {
                         states.insert(id, data.state);
                     }
                 }
@@ -122,7 +122,7 @@ pub fn main(
             recv(timer) -> _ => {
                 // remove lost elevators
                 for id in connected_elevators.clone().keys() {
-                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(timeout) {
+                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(TIMEOUT) {
                         connected_elevators.remove(id);
                     }
                 }

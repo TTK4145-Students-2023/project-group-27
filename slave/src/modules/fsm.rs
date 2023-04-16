@@ -115,6 +115,7 @@ pub fn main(
                     Behaviour::DoorOpen => {
                         elevator.update_direction();
                         if elevator.should_stop() && elevator.requests_at_this_floor() {
+                            println!("Doors should close");
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request {
