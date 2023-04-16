@@ -6,6 +6,7 @@ use std::time::Duration;
 use std::process;
 
 use crossbeam_channel::{unbounded, select};
+
 use shared_resources::config::BackupConfig;
 use shared_resources::request::Request;
 use network_rust::udpnet;
@@ -15,7 +16,6 @@ mod process_pair;
 pub fn main() -> Result<()> {
     let config = BackupConfig::get();
     let num_floors = config.elevator.num_floors;
-
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     let process_pair_port = config.network.pp_port;

@@ -9,8 +9,8 @@ use std::thread;
 use std::process;
 
 use crossbeam_channel::{unbounded, select, Sender, tick};
-use network_rust::udpnet;
 
+use network_rust::udpnet;
 use shared_resources::config::MasterConfig;
 use shared_resources::call::Call;
 use shared_resources::elevator_message::ElevatorMessage;
