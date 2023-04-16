@@ -8,7 +8,7 @@ use std::thread::spawn;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
+use crossbeam_channel::{Sender, Receiver, unbounded, select};
 use network_rust::udpnet;
 
 use shared_resources::config::SlaveConfig;
@@ -25,8 +25,6 @@ pub fn main(
     master_hall_requests_tx: Sender<MasterMessage>,
     elevator_status_rx: Receiver<ElevatorStatus>,
 ) {
-    let update_master_ticker = tick(Duration::from_secs_f64(0.1));
-
     const TIMEOUT_BUFFERED_HALL_REQUESTS: u64 = 5;
 
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
@@ -89,19 +87,16 @@ pub fn main(
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
             } 
-            recv(update_master_ticker) -> _ => {
-                // remove timed out orders
-                hall_request_buffer.remove_timed_out_orders();
-                // send state and collected orders to master
-                let message = generate_elevator_message(
-                    config.elevnum.to_string().clone(),
-                    elevator_behaviour.clone(),
-                    &hall_request_buffer
-                );
-                elevator_message_tx.send(message).unwrap();
-                pp_update_tx.send(elevator_behaviour.clone()).unwrap();
-            }
+            default(Duration::from_secs_f64(0.1)) => (),
         }
+        hall_request_buffer.remove_timed_out_orders();
+        let message = generate_elevator_message(
+            config.elevnum.to_string().clone(),
+            elevator_behaviour.clone(),
+            &hall_request_buffer
+        );
+        elevator_message_tx.send(message).unwrap();
+        pp_update_tx.send(elevator_behaviour.clone()).unwrap();
         if master_connected && last_seen_master.elapsed() > Duration::from_secs(MASTER_TIMEOUT) {
             master_connected = false;
             master_hall_requests_tx.send(MasterMessage {

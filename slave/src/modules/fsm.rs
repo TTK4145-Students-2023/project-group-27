@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use crossbeam_channel::{select, Receiver, Sender, tick, unbounded};
+use crossbeam_channel::{select, Receiver, Sender, unbounded};
 
 use shared_resources::call::Call;
 use shared_resources::request::Request;
@@ -26,8 +26,8 @@ pub fn main(
     master_hall_requests_rx: Receiver<MasterMessage>,
     elevator_status_tx: Sender<ElevatorStatus>,
 ) {
-    let timer = tick(Duration::from_secs_f64(0.1));
-    let (new_request_tx, new_request_rx) = unbounded();
+    let timer = Duration::from_millis(100);
+    let (new_request_tx, new_request_rx) = unbounded::<bool>();
 
     let mut elevator = backup_data;
     let num_floors = 4; // TODO: not this
@@ -115,6 +115,7 @@ pub fn main(
                     Behaviour::DoorOpen => {
                         elevator.update_direction();
                         if elevator.should_stop() && elevator.requests_at_this_floor() {
+                            println!("Doors should close");
                             doors_activate_tx.send(true).unwrap();
                             elevator.serve_requests_here();
                             button_light_tx.send((Request {
@@ -136,7 +137,7 @@ pub fn main(
                     Behaviour::Idle | Behaviour::Moving => elevator.behaviour,
                 }
             },
-            recv(timer) -> _ => (),
+            default(timer) => (),
         }
         elevator_status_tx.send(elevator.clone()).unwrap();
     }

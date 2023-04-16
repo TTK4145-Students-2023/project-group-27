@@ -115,15 +115,15 @@ pub fn main(
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
-                // collect new hall orders
-                for request in msg.clone().unwrap().new_hall_orders {
-                    new_hall_request_buffer.insert_new_request(request);
-                }
-
                 // remove served hall orders
                 if behaviour == "doorOpen" {
                     let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
                     served_hall_request_buffer.insert_new_request(Request { floor: floor, call: call });
+                }
+                
+                // collect new hall orders
+                for request in msg.clone().unwrap().new_hall_orders {
+                    new_hall_request_buffer.insert_new_request(request);
                 }
 
                 // assign hall orders only to available elevators
