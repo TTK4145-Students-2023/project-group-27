@@ -27,7 +27,7 @@ pub fn main(
     elevator_status_tx: Sender<ElevatorStatus>,
 ) {
     let timer = tick(Duration::from_secs_f64(0.1));
-    let (new_request_tx, new_request_rx) = unbounded();
+    let (new_request_tx, new_request_rx) = unbounded::<bool>();
 
     let mut elevator = backup_data;
     let num_floors = 4; // TODO: not this
