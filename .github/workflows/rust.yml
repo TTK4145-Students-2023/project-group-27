@@ -20,6 +20,12 @@ jobs:
     - uses: actions/checkout@v3
     - name: Build-Master
       run: cd master; cargo build --verbose
+  build-backup:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build-Backup
+      run: cd backup; cargo build --verbose
   check-shared-resources:
     runs-on: ubuntu-latest
     steps:
