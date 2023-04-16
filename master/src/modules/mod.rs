@@ -27,7 +27,6 @@ pub fn run() -> Result<()> {
     process_pair::spawn_process_pair(program_path);
 
     thread::spawn(move || network::main(
-        backup_data,
         config,
         hall_requests_tx,
         connected_elevators_tx,

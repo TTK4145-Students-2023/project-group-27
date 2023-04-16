@@ -14,8 +14,8 @@ use network_rust::udpnet;
 use shared_resources::config::SlaveConfig;
 use shared_resources::request::Request;
 use shared_resources::elevator_message::ElevatorMessage;
+use shared_resources::request_buffer::RequestBuffer;
 
-use crate::utilities::request_buffer::RequestBuffer;
 use crate::utilities::elevator_status::ElevatorStatus;
 use crate::utilities::master_message::MasterMessage;
 

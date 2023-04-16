@@ -15,11 +15,11 @@ use shared_resources::config::MasterConfig;
 use shared_resources::call::Call;
 use shared_resources::elevator_message::ElevatorMessage;
 use shared_resources::request_buffer::RequestBuffer;
+use shared_resources::request::Request;
 
 use crate::utilities::hall_request_assigner::*;
 
 pub fn main(
-    backup_data: Vec<Vec<bool>>,
     config: MasterConfig,
     hall_requests_tx: Sender<Vec<Vec<bool>>>,
     connected_elevators_tx: Sender<HashMap<String, ElevatorData>>,
@@ -44,9 +44,16 @@ pub fn main(
         });
     }
  
-    let (backup_send_new_request_tx, backup_send_new_request_rx) = unbounded::<Request>();
+    let (backup_changed_requests_tx, backup_changed_requests_rx) = unbounded::<(Vec<Request>,Vec<Request>)>();
     thread::Builder::new().name("master_to_backup".to_string()).spawn(move || {
-        if udpnet::bcast::tx(config.network.backup_port, backup_send_new_request_rx, false).is_err() {
+        if udpnet::bcast::tx(config.network.backup_update_port, backup_changed_requests_rx, false).is_err() {
+            process::exit(1);
+        }
+    }).unwrap();
+ 
+    let (backup_confirmed_orders_tx, backup_confirmed_orders_rx) = unbounded::<Vec<Vec<bool>>>();
+    thread::Builder::new().name("backup_to_master".to_string()).spawn(move || {
+        if udpnet::bcast::rx(config.network.backup_ack_port, backup_confirmed_orders_tx).is_err() {
             process::exit(1);
         }
     }).unwrap();
@@ -58,18 +65,19 @@ pub fn main(
         }
     }).unwrap();
     
-    let TIMEOUT: f64 = 4.0;
+    const SLAVE_TIMEOUT: f64 = 4.0;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
     let timer = tick(update_freq);
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
-    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize] config.elevator.num_floors as usize];
+    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize]; config.elevator.num_floors as usize];
     let mut output: HashMap<String, Vec<Vec<bool>>> = HashMap::new();
 
     const BUFFER_TIMEOUT: u64 = 2;
-    let mut hall_request_buffer = RequestBuffer::new(BUFFER_TIMEOUT);
+    let mut new_hall_request_buffer = RequestBuffer::new(BUFFER_TIMEOUT);
+    let mut served_hall_request_buffer = RequestBuffer::new(BUFFER_TIMEOUT);
 
     loop {
         select! {
@@ -103,25 +111,25 @@ pub fn main(
                     last_available: 
                         if behaviour != connected_elevators[&id].state.behaviour // changed state
                             || behaviour == "idle" // is idle
-                            || behaviour == "moving" && floor != connected_elevators[&id].state.floor // moved to another floor
+                            || floor != connected_elevators[&id].state.floor // moved to another floor
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
                 // collect new hall orders
                 for request in msg.clone().unwrap().new_hall_orders {
-                    request_buffer.insert_new_request(request);
+                    new_hall_request_buffer.insert_new_request(request);
                 }
 
                 // remove served hall orders
                 if behaviour == "doorOpen" {
                     let call = if direction == "up" { Call::HallUp } else { Call::HallDown };
-                    hall_requests[floor as usize][call as usize] = false;
+                    served_hall_request_buffer.insert_new_request(Request { floor: floor, call: call });
                 }
 
                 // assign hall orders only to available elevators
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
-                    if data.last_available.elapsed() < Duration::from_secs_f64(TIMEOUT) {
+                    if data.last_available.elapsed() < Duration::from_secs_f64(SLAVE_TIMEOUT) {
                         states.insert(id, data.state);
                     }
                 }
@@ -132,12 +140,29 @@ pub fn main(
 
                 // broadcast assigned orders
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
+
+                // send new and served orders to backup
+                backup_changed_requests_tx.send((
+                    new_hall_request_buffer.get_new_requests(),
+                    served_hall_request_buffer.get_new_requests()
+                )).unwrap();
             },
             // receive from backup
+            recv(backup_confirmed_orders_rx) -> msg => {
+                hall_requests = msg.unwrap();
+                new_hall_request_buffer.remove_confirmed_requests(&hall_requests);
+                let mut inverted_hall_requests = hall_requests.clone();
+                for floor in 0..config.elevator.num_floors {
+                    for call in 0..Call::num_hall_calls() {
+                        inverted_hall_requests[floor as usize][call as usize] = !inverted_hall_requests[floor as usize][call as usize];
+                    }
+                }
+                served_hall_request_buffer.remove_confirmed_requests(&inverted_hall_requests);
+            },
             recv(timer) -> _ => {
                 // remove lost elevators
                 for id in connected_elevators.clone().keys() {
-                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(TIMEOUT) {
+                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(SLAVE_TIMEOUT) {
                         connected_elevators.remove(id);
                     }
                 }
