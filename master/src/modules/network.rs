@@ -14,6 +14,7 @@ use network_rust::udpnet;
 use shared_resources::config::MasterConfig;
 use shared_resources::call::Call;
 use shared_resources::elevator_message::ElevatorMessage;
+use shared_resources::request_buffer::RequestBuffer;
 
 use crate::utilities::hall_request_assigner::*;
 
@@ -43,22 +44,32 @@ pub fn main(
         });
     }
  
-    let (backup_send_tx, backup_send_rx) = unbounded::<Vec<Vec<bool>>>();
+    let (backup_send_new_request_tx, backup_send_new_request_rx) = unbounded::<Request>();
     thread::Builder::new().name("master_to_backup".to_string()).spawn(move || {
-        if udpnet::bcast::tx(config.network.pp_port, backup_send_rx, false).is_err() {
+        if udpnet::bcast::tx(config.network.backup_port, backup_send_new_request_rx, false).is_err() {
+            process::exit(1);
+        }
+    }).unwrap();
+ 
+    let (process_pair_tx, process_pair_rx) = unbounded::<bool>();
+    thread::Builder::new().name("master_to_process_pair".to_string()).spawn(move || {
+        if udpnet::bcast::tx(config.network.pp_port, process_pair_rx, true).is_err() {
             process::exit(1);
         }
     }).unwrap();
     
-    let timeout: f64 = 2.5 * config.elevator.num_floors as f64;
+    let TIMEOUT: f64 = 4.0;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;
     let update_freq = Duration::from_secs_f64(0.1);
     let timer = tick(update_freq);
 
     let mut connected_elevators: HashMap<String, ElevatorData> = HashMap::new();
-    let mut hall_requests = backup_data;
+    let mut hall_requests = vec![vec![false; Call::num_hall_calls() as usize] config.elevator.num_floors as usize];
     let mut output: HashMap<String, Vec<Vec<bool>>> = HashMap::new();
+
+    const BUFFER_TIMEOUT: u64 = 2;
+    let mut hall_request_buffer = RequestBuffer::new(BUFFER_TIMEOUT);
 
     loop {
         select! {
@@ -89,13 +100,16 @@ pub fn main(
                         cab_requests: cab_requests,
                     },
                     last_seen: Instant::now(),
-                    last_available: if behaviour != connected_elevators[&id].state.behaviour || behaviour == "idle" 
+                    last_available: 
+                        if behaviour != connected_elevators[&id].state.behaviour // changed state
+                            || behaviour == "idle" // is idle
+                            || behaviour == "moving" && floor != connected_elevators[&id].state.floor // moved to another floor
                         { Instant::now() } else { connected_elevators[&id].last_available },
                 });
                 
                 // collect new hall orders
-                for order in msg.clone().unwrap().new_hall_orders {
-                    hall_requests[order.floor as usize][order.call as usize] = true;
+                for request in msg.clone().unwrap().new_hall_orders {
+                    request_buffer.insert_new_request(request);
                 }
 
                 // remove served hall orders
@@ -107,7 +121,7 @@ pub fn main(
                 // assign hall orders only to available elevators
                 let mut states = HashMap::new();
                 for (id, data) in connected_elevators.clone() {
-                    if data.last_available.elapsed() < Duration::from_secs_f64(timeout) {
+                    if data.last_available.elapsed() < Duration::from_secs_f64(TIMEOUT) {
                         states.insert(id, data.state);
                     }
                 }
@@ -119,10 +133,11 @@ pub fn main(
                 // broadcast assigned orders
                 hall_requests_tx.send(hall_requests.clone()).unwrap();
             },
+            // receive from backup
             recv(timer) -> _ => {
                 // remove lost elevators
                 for id in connected_elevators.clone().keys() {
-                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(timeout) {
+                    if connected_elevators[id].last_seen.elapsed() > Duration::from_secs_f64(TIMEOUT) {
                         connected_elevators.remove(id);
                     }
                 }
@@ -130,6 +145,6 @@ pub fn main(
             }
         }
         command_tx.send(output.clone()).unwrap();
-        backup_send_tx.send(hall_requests.clone()).unwrap();
+        process_pair_tx.send(true).unwrap(); // ping process pair
     }
 }
