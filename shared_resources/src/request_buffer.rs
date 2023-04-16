@@ -1,6 +1,6 @@
 use std::time::{Instant, Duration};
 
-use shared_resources::request::Request;
+use crate::request::Request;
 
 #[derive(Debug, Clone)]
 pub struct RequestBuffer {

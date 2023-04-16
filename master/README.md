@@ -1,4 +1,4 @@
-# Master - Backup
+# Master
 
 This script is responsible for receiving messages from the slaves and distributing hall requests among the elevators.
 

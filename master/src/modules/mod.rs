@@ -7,7 +7,7 @@ use crossbeam_channel::unbounded;
 use shared_resources::config::MasterConfig;
 
 mod network;
-mod backup;
+mod process_pair;
 
 use crate::utilities::debug;
 
@@ -20,15 +20,13 @@ pub fn run() -> Result<()> {
     let program_dir = PathBuf::from("./.");
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     println!("{:#?}", program_path);
-    let backup_port = config.network.pp_port;
-    //let ack_port = config.network.ack_port;
-    let handle = thread::spawn(move || backup::backup(config.elevator.num_floors, backup_port));
-    let backup_data = handle.join().unwrap();
+    let process_pair_port = config.network.pp_port;
+    let process_pair_handle = thread::spawn(move || process_pair::process_pair(process_pair_port));
+    process_pair_handle.join().unwrap();
 
-    backup::spawn_backup(program_path);
+    process_pair::spawn_process_pair(program_path);
 
     thread::spawn(move || network::main(
-        backup_data,
         config,
         hall_requests_tx,
         connected_elevators_tx,

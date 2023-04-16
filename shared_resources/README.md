@@ -8,6 +8,7 @@ pure library with no binaries.
 | Module | Description |
 | --- | --- |
 | `Call` | Data structure representing a request call. That is, what direction the user has requested to travel. |
-| `Request` | Data structure representing a requests. That is, what direction and floor is requested. |
-| `ElevatorMessage` | Data structure representing the data sent from each slave to the master node. |
 | `Config` | Data structures and methods for reading a configuration file. |
+| `ElevatorMessage` | Data structure representing the data sent from each slave to the master node. |
+| `Request` | Data structure representing a requests. That is, what direction and floor is requested. |
+| `RequestBuffer` | Data structure buffering requests, temporarily storing requests while waiting from confirmation from other programs. |

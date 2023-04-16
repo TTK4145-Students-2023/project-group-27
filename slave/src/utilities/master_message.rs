@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use shared_resources::call::Call;
 
+#[derive(Clone)]
 pub struct MasterMessage {
     pub our_hall_requests: Vec<Vec<bool>>,
     pub all_hall_requests: Vec<Vec<bool>>,
