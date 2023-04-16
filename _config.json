@@ -6,7 +6,8 @@
         "slave_pp_ack_ports": [19760, 19761, 19762],
         "backup_update_ports": [19770],
         "backup_ack_ports": [19780],
-        "master_pp_ports": [19790, 19791, 19792]
+        "master_pp_ports": [19790],
+        "backup_pp_ports": [19800]
     },
     "server": {
         "port": 15657

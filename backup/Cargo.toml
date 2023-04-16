@@ -8,9 +8,6 @@ edition = "2021"
 [dependencies]
 network-rust = { path = "../network-rust", version = "0.1.0" }
 crossbeam-channel = "0.5.7"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-crossterm = "0.26.1"
 shared_resources = { path = "../shared_resources", version = "0.1.0" }
 
 [profile.dev]

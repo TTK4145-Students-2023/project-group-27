@@ -124,7 +124,6 @@ pub struct HallRequestAssignerConfig {
 
 #[derive(Debug, Clone)]
 pub struct MasterConfig {
-    pub masternum: u8,
     pub network: MasterNetworkConfig,
     pub elevator: ElevatorConfig,
     pub hall_request_assigner: HallRequestAssignerConfig,
@@ -136,15 +135,13 @@ impl MasterConfig {
         let exec_path = config_file.hall_request_assigner.exec_folder_path.clone()
             + &config_file.hall_request_assigner.operating_systems[env::consts::OS];
 
-        let (masternum, _) = parse_env_args(config_file.server["port"]);
         MasterConfig {
-            masternum: masternum,
             network: MasterNetworkConfig { 
                 update_ports: config_file.network["update_ports"].to_vec(),
                 command_ports: config_file.network["command_ports"].to_vec(),
                 backup_update_port: config_file.network["backup_update_ports"][0],
                 backup_ack_port: config_file.network["backup_ack_ports"][0],
-                pp_port: config_file.network["master_pp_ports"][masternum as usize],
+                pp_port: config_file.network["master_pp_ports"][0],
             },
             elevator: ElevatorConfig { 
                 num_floors: config_file.elevator["num_floors"], 
@@ -152,6 +149,35 @@ impl MasterConfig {
             hall_request_assigner: HallRequestAssignerConfig { 
                 exec_path: exec_path,
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BackupNetworkConfig {
+    pub backup_update_port: u16,
+    pub backup_ack_port: u16,
+    pub pp_port: u16,
+}
+
+#[derive(Debug, Clone)]
+pub struct BackupConfig {
+    pub network: BackupNetworkConfig,
+    pub elevator: ElevatorConfig,
+}
+
+impl BackupConfig {
+    pub fn get() -> Self {
+        let config_file = read_config_file().unwrap();
+        BackupConfig {
+            network: BackupNetworkConfig { 
+                backup_update_port: config_file.network["backup_update_ports"][0],
+                backup_ack_port: config_file.network["backup_ack_ports"][0],
+                pp_port: config_file.network["backup_pp_ports"][0],
+            },
+            elevator: ElevatorConfig { 
+                num_floors: config_file.elevator["num_floors"], 
+            },
         }
     }
 }
