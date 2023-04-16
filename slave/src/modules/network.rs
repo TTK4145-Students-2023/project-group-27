@@ -26,7 +26,7 @@ pub fn main(
     elevator_status_rx: Receiver<ElevatorStatus>,
 ) {
     const TIMEOUT_BUFFERED_HALL_REQUESTS: u64 = 5;
-
+    let timer = Duration::from_millis(100);
     let (elevator_message_tx, elevator_message_rx) = unbounded::<ElevatorMessage>();
     {
         let elevator_message_rx = elevator_message_rx.clone();
@@ -87,23 +87,25 @@ pub fn main(
             recv(elevator_status_rx) -> elevator_behaviour_msg => {
                 elevator_behaviour = elevator_behaviour_msg.unwrap();
             } 
-            default(Duration::from_secs_f64(0.1)) => (),
+            default(timer) => {
+                hall_request_buffer.remove_timed_out_orders();
+                let message = generate_elevator_message(
+                    config.elevnum.to_string().clone(),
+                    elevator_behaviour.clone(),
+                    &hall_request_buffer
+                );
+                elevator_message_tx.send(message).unwrap();
+                pp_update_tx.send(elevator_behaviour.clone()).unwrap();
+                if master_connected && last_seen_master.elapsed() > Duration::from_secs(MASTER_TIMEOUT) {
+                    master_connected = false;
+                    master_hall_requests_tx.send(MasterMessage {
+                        our_hall_requests: last_master_message.all_hall_requests.clone(),
+                        all_hall_requests: last_master_message.all_hall_requests.clone(),
+                    }).unwrap();
+                }
+            },
         }
-        hall_request_buffer.remove_timed_out_orders();
-        let message = generate_elevator_message(
-            config.elevnum.to_string().clone(),
-            elevator_behaviour.clone(),
-            &hall_request_buffer
-        );
-        elevator_message_tx.send(message).unwrap();
-        pp_update_tx.send(elevator_behaviour.clone()).unwrap();
-        if master_connected && last_seen_master.elapsed() > Duration::from_secs(MASTER_TIMEOUT) {
-            master_connected = false;
-            master_hall_requests_tx.send(MasterMessage {
-                our_hall_requests: last_master_message.all_hall_requests.clone(),
-                all_hall_requests: last_master_message.all_hall_requests.clone(),
-            }).unwrap();
-        }
+        
     }
 }
 

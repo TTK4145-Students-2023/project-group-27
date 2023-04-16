@@ -3,8 +3,6 @@
 /// It receives events from other modules and switches states based
 /// on these.
 
-use std::time::Duration;
-
 use crossbeam_channel::{select, Receiver, Sender, unbounded};
 
 use shared_resources::call::Call;
@@ -26,7 +24,6 @@ pub fn main(
     master_hall_requests_rx: Receiver<MasterMessage>,
     elevator_status_tx: Sender<ElevatorStatus>,
 ) {
-    let timer = Duration::from_millis(100);
     let (new_request_tx, new_request_rx) = unbounded::<bool>();
 
     let mut elevator = backup_data;
@@ -137,7 +134,7 @@ pub fn main(
                     Behaviour::Idle | Behaviour::Moving => elevator.behaviour,
                 }
             },
-            default(timer) => (),
+            
         }
         elevator_status_tx.send(elevator.clone()).unwrap();
     }
