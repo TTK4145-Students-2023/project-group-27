@@ -6,7 +6,7 @@
 
 use std::thread::spawn;
 use std::collections::HashMap;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Sender, Receiver, unbounded, select, tick};
 use network_rust::udpnet;
@@ -58,10 +58,13 @@ pub fn main(
     let mut hall_request_buffer = RequestBuffer::new(TIMEOUT_BUFFERED_HALL_REQUESTS);
     let mut elevator_behaviour = ElevatorStatus::new(num_floors);
     
-    const MASTER_TIMEOUT = 3;
+    const MASTER_TIMEOUT: u64 = 3;
     let mut last_seen_master = Instant::now();
     let mut master_connected = false;
-    let mut last_master_message = MasterMessage { Vec::new(), Vec::new() };
+    let mut last_master_message = MasterMessage { 
+        our_hall_requests: Vec::new(), 
+        all_hall_requests: Vec::new() 
+    };
 
     loop {
         select! {
@@ -74,7 +77,7 @@ pub fn main(
                     config.elevnum.to_string().clone()
                 );
                 hall_request_buffer.remove_confirmed_requests(&master_message.all_hall_requests);
-                master_hall_requests_tx.send(master_message).unwrap();
+                master_hall_requests_tx.send(master_message.clone()).unwrap();
                 last_master_message = master_message;
                 last_seen_master = Instant::now();
                 master_connected = true;
@@ -102,9 +105,9 @@ pub fn main(
         if master_connected && last_seen_master.elapsed() > Duration::from_secs(MASTER_TIMEOUT) {
             master_connected = false;
             master_hall_requests_tx.send(MasterMessage {
-                our_hall_requests: last_master_message.all_hall_requests(),
-                all_hall_requests: last_master_message.all_hall_requests(),
-            });
+                our_hall_requests: last_master_message.all_hall_requests.clone(),
+                all_hall_requests: last_master_message.all_hall_requests.clone(),
+            }).unwrap();
         }
     }
 }
