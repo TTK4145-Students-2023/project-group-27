@@ -43,7 +43,7 @@ pub fn main(
             }
         });
     }
- 
+
     let (backup_changed_requests_tx, backup_changed_requests_rx) = unbounded::<(Vec<Request>,Vec<Request>)>();
     thread::Builder::new().name("master_to_backup".to_string()).spawn(move || {
         if udpnet::bcast::tx(config.network.backup_update_port, backup_changed_requests_rx, false).is_err() {
@@ -64,7 +64,7 @@ pub fn main(
             process::exit(1);
         }
     }).unwrap();
-    
+
     const SLAVE_TIMEOUT: f64 = 4.0;
 
     let hra_exec_path = config.hall_request_assigner.exec_path;

@@ -8,10 +8,10 @@ use crossbeam_channel::{select, unbounded};
 use network_rust::udpnet;
 use network_rust::udpnet::bcast::BcError;
 
-pub fn process_pair(num_floors: u8, process_pair_port: u16) {
+pub fn process_pair(process_pair_port: u16) {
     println!("MASTER PROCESS PAIR ON PORT: {:#?}\n---------------------", process_pair_port);
 
-    let (process_pair_tx, process_pair_rx) = unbounded::<Vec<Vec<bool>>>();
+    let (process_pair_tx, process_pair_rx) = unbounded::<bool>();
     thread::Builder::new().name("process_pair_recieve_from_master".to_string()).spawn(move || {
         match udpnet::bcast::rx(process_pair_port, process_pair_tx) {
             Err(BcError::IOError(_e)) => process::exit(1),

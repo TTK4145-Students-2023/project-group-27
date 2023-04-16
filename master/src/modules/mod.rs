@@ -21,7 +21,7 @@ pub fn run() -> Result<()> {
     let program_path: String = fs::canonicalize(&program_dir).unwrap().into_os_string().into_string().unwrap();
     println!("{:#?}", program_path);
     let process_pair_port = config.network.pp_port;
-    let process_pair_handle = thread::spawn(move || process_pair::process_pair(config.elevator.num_floors, process_pair_port));
+    let process_pair_handle = thread::spawn(move || process_pair::process_pair(process_pair_port));
     process_pair_handle.join().unwrap();
 
     process_pair::spawn_process_pair(program_path);
